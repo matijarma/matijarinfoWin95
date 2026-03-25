@@ -48,7 +48,7 @@ export function createOSKernel({
     return true;
   }
 
-  async function boot() {
+  async function boot({ bootDurationMs: overrideBootDurationMs } = {}) {
     if (sequenceInProgress || currentState !== OS_STATES.POWER_OFF) {
       return false;
     }
@@ -56,8 +56,12 @@ export function createOSKernel({
     sequenceInProgress = true;
 
     try {
+      const effectiveBootDurationMs =
+        Number.isFinite(overrideBootDurationMs) && overrideBootDurationMs > 0
+          ? Math.round(overrideBootDurationMs)
+          : bootDurationMs;
       transition(OS_STATES.BOOTING, "power-on");
-      await delay(bootDurationMs);
+      await delay(effectiveBootDurationMs);
       transition(OS_STATES.DESKTOP_READY, "boot-complete");
       return true;
     } finally {

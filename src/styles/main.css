@@ -102,6 +102,163 @@ select {
   animation: bios95-blink 0.95s step-end infinite;
 }
 
+.bios95-setup {
+  width: 100%;
+  height: 100%;
+  background: #000080;
+  color: #dbe6ff;
+  padding: 8px;
+  font-family: "Lucida Console", "Consolas", "Courier New", monospace;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 8px;
+}
+
+.bios95-setup__header {
+  border: 1px solid #7ba4ff;
+  background: #001d74;
+  padding: 6px 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: clamp(11px, 1.2vw, 15px);
+}
+
+.bios95-setup__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  gap: 8px;
+  min-height: 0;
+}
+
+.bios95-setup__panel {
+  border: 1px solid #7ba4ff;
+  background: #00185f;
+  padding: 8px;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-height: 0;
+}
+
+.bios95-setup__title {
+  margin: 0;
+  font-size: clamp(12px, 1.2vw, 15px);
+  text-transform: uppercase;
+}
+
+.bios95-setup__grid {
+  display: grid;
+  gap: 4px;
+}
+
+.bios95-setup__row {
+  min-height: 30px;
+  border: 1px solid #2a4fb5;
+  background: #00237e;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px;
+}
+
+.bios95-setup__label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bios95-setup__spinner {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.bios95-setup__value {
+  min-width: 120px;
+  text-align: center;
+  font-weight: 700;
+  color: #ffd96d;
+}
+
+.bios95-setup__toggle,
+.bios95-setup__button {
+  border: 1px solid #9fb5ff;
+  background: #00339f;
+  color: #ffffff;
+  min-height: 24px;
+  padding: 0 8px;
+  font-family: inherit;
+  font-size: 11px;
+}
+
+.bios95-setup__toggle:hover,
+.bios95-setup__button:hover,
+.bios95-setup__toggle:focus-visible,
+.bios95-setup__button:focus-visible {
+  outline: none;
+  border-color: #ffffff;
+}
+
+.bios95-setup__button--primary {
+  background: #0d4cd0;
+  color: #ffe576;
+}
+
+.bios95-setup__drives {
+  border: 1px solid #2a4fb5;
+  background: #001652;
+  padding: 6px;
+  display: grid;
+  gap: 4px;
+  font-size: 11px;
+}
+
+.bios95-setup__drives p,
+.bios95-setup__footer p {
+  margin: 0;
+}
+
+.bios95-setup__summary {
+  margin: 0;
+  padding-left: 17px;
+  display: grid;
+  gap: 4px;
+  min-height: 0;
+}
+
+.bios95-setup__quip {
+  margin: 0;
+  color: #ffd96d;
+  line-height: 1.35;
+}
+
+.bios95-setup__quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.bios95-setup__footer {
+  border: 1px solid #7ba4ff;
+  background: #001d74;
+  padding: 6px 8px;
+  display: grid;
+  gap: 6px;
+}
+
+.bios95-setup__footer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.bios95-setup__help {
+  color: #a6c0ff;
+  font-size: 11px;
+}
+
 @keyframes bios95-blink {
   50% {
     opacity: 0;
@@ -113,8 +270,37 @@ select {
   height: 100%;
   background: #000000;
   display: grid;
-  place-items: center;
-  padding: 8px;
+  align-content: center;
+  justify-items: center;
+  gap: 14px;
+  padding: clamp(12px, 2.8vw, 28px);
+  color: #cdcdcd;
+  font-family: "Lucida Console", "Consolas", "Courier New", monospace;
+}
+
+.boot95-screen__prelude {
+  width: min(920px, 100%);
+  min-height: 250px;
+  border: 1px solid #595959;
+  background: #020202;
+  padding: 10px 12px;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.boot95-screen__log {
+  margin: 0;
+  min-height: 180px;
+  white-space: pre-wrap;
+  overflow: hidden;
+  font-size: clamp(12px, 1.4vw, 16px);
+  line-height: 1.38;
+}
+
+.boot95-screen__status {
+  margin: 0;
+  color: #e7d294;
 }
 
 .boot95-screen__asset {
@@ -138,7 +324,7 @@ select {
 
 .boot95-screen__bar-fill {
   display: block;
-  width: 100%;
+  width: 0;
   height: 100%;
   background: repeating-linear-gradient(
     90deg,
@@ -147,7 +333,14 @@ select {
     #151515 10px,
     #151515 15px
   );
-  animation: boot95-progress 1.2s linear infinite;
+  transition: width 0.16s linear;
+}
+
+.boot95-screen__final-status {
+  margin: 0;
+  color: #ececec;
+  font-size: 12px;
+  text-align: center;
 }
 
 @keyframes boot95-progress {
@@ -193,7 +386,9 @@ select {
   background: #000000;
   color: #ffb54c;
   display: grid;
-  place-items: center;
+  place-content: center;
+  justify-items: center;
+  gap: 14px;
   padding: 20px;
 }
 
@@ -203,6 +398,12 @@ select {
   padding: 12px 18px;
   text-align: center;
   max-width: min(900px, 100%);
+}
+
+.safeoff95-screen__hint {
+  margin: 0;
+  color: #cccccc;
+  font-size: 13px;
 }
 
 .desktop-shell {
@@ -413,12 +614,13 @@ select {
 .os-window__control,
 .taskbar__start,
 .taskbar__window,
-.systray__item,
 .win95-menu__button,
 .context-menu__button,
 .run-dialog__button,
 .ie-window__go,
-.folder-window__menu-button {
+.folder-window__menu-button,
+.clock-properties__button,
+.clock-properties__tab {
   border: 2px solid;
   border-color: #ffffff #808080 #808080 #ffffff;
   background: #c0c0c0;
@@ -495,12 +697,13 @@ select {
 .os-window__control:active,
 .taskbar__start:active,
 .taskbar__window:active,
-.systray__item:active,
 .win95-menu__button:active,
 .context-menu__button:active,
 .run-dialog__button:active,
 .ie-window__go:active,
-.folder-window__menu-button:active {
+.folder-window__menu-button:active,
+.clock-properties__button:active,
+.clock-properties__tab:active {
   border-color: #808080 #ffffff #ffffff #808080;
 }
 
@@ -535,7 +738,7 @@ select {
 .taskbar {
   position: relative;
   z-index: 30;
-  height: 30px;
+  height: 31px;
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
@@ -546,18 +749,28 @@ select {
 }
 
 .taskbar__start {
-  min-width: 84px;
+  min-width: 88px;
   min-height: 24px;
-  padding: 0 7px;
+  padding: 0 8px;
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.taskbar__start.is-open {
+  border-color: #808080 #ffffff #ffffff #808080;
 }
 
 .taskbar__start-icon .win-icon__glyph {
   width: 16px;
   height: 16px;
+}
+
+.taskbar__start-text {
+  font-size: 13px;
+  transform: translateY(-0.2px);
 }
 
 .taskbar__windows {
@@ -614,37 +827,71 @@ select {
   display: flex;
   gap: 1px;
   align-items: center;
-  padding: 0 3px;
+  padding: 1px 3px;
   border: 2px solid;
   border-color: #808080 #ffffff #ffffff #808080;
   background: #c0c0c0;
 }
 
-.systray__item {
-  width: 20px;
-  height: 19px;
+.systray__icon {
+  width: 18px;
+  height: 18px;
+  border: 1px solid transparent;
+  background: transparent;
   padding: 0;
+  display: grid;
+  place-items: center;
 }
 
-.systray__item .win-icon__glyph {
-  width: 12px;
-  height: 12px;
+.systray__icon:hover,
+.systray__icon:focus-visible {
+  border-color: #ffffff #808080 #808080 #ffffff;
+  outline: none;
+}
+
+.systray__icon:active {
+  border-color: #808080 #ffffff #ffffff #808080;
+}
+
+.systray__icon .win-icon__glyph {
+  width: 14px;
+  height: 14px;
+}
+
+.systray__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  border: 0;
+  padding: 0;
+  white-space: nowrap;
+  clip-path: inset(50%);
+  overflow: hidden;
 }
 
 .taskbar__clock {
-  min-width: 64px;
+  min-width: 66px;
   height: 23px;
   border: 2px solid;
   border-color: #808080 #ffffff #ffffff #808080;
   display: grid;
   place-items: center;
   background: #c0c0c0;
+  padding: 0 6px;
+  cursor: default;
+  user-select: none;
+}
+
+.taskbar__clock:focus-visible {
+  outline: 1px dotted #000000;
+  outline-offset: -4px;
 }
 
 .start-menu {
   position: absolute;
   left: 2px;
-  bottom: 30px;
+  bottom: 31px;
   z-index: 50;
 }
 
@@ -654,7 +901,7 @@ select {
 
 .start-menu__shell {
   width: 292px;
-  min-height: 320px;
+  min-height: 0;
   display: grid;
   grid-template-columns: 26px 1fr;
   border: 2px solid;
@@ -840,7 +1087,8 @@ select {
 .control-panel-app,
 .app-about,
 .ie-window,
-.run-dialog {
+.run-dialog,
+.clock-properties {
   height: 100%;
   position: relative;
 }
@@ -848,7 +1096,8 @@ select {
 .folder-window,
 .control-panel-app,
 .ie-window,
-.run-dialog {
+.run-dialog,
+.clock-properties {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -862,6 +1111,7 @@ select {
 .folder-window__title,
 .control-panel-app h2,
 .run-dialog__title,
+.clock-properties h2,
 .app-about h2,
 .app-about h3 {
   margin: 0;
@@ -875,6 +1125,8 @@ select {
 .run-dialog__text,
 .run-dialog__hint,
 .run-dialog__status,
+.clock-properties__subtitle,
+.clock-properties__status,
 .app-about p,
 .ie-window__status {
   margin: 0;
@@ -934,7 +1186,9 @@ select {
 }
 
 .ie-window__address,
-.run-dialog__input {
+.run-dialog__input,
+.clock-properties__input,
+.clock-properties__select {
   width: 100%;
   min-height: 21px;
   border: 2px solid;
@@ -944,7 +1198,8 @@ select {
 }
 
 .ie-window__go,
-.run-dialog__button {
+.run-dialog__button,
+.clock-properties__button {
   min-width: 70px;
   min-height: 21px;
 }
@@ -965,6 +1220,150 @@ select {
 
 .run-dialog__actions {
   grid-column: 2;
+}
+
+.clock-properties__header {
+  display: grid;
+  gap: 2px;
+}
+
+.clock-properties__tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.clock-properties__tab {
+  min-width: 116px;
+  min-height: 22px;
+}
+
+.clock-properties__tab.is-active {
+  border-color: #808080 #ffffff #ffffff #808080;
+  background: #d2d2d2;
+}
+
+.clock-properties__panel {
+  flex: 1;
+  min-height: 0;
+  border: 2px solid;
+  border-color: #808080 #ffffff #ffffff #808080;
+  background: #ffffff;
+  padding: 8px;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.clock-properties__preview {
+  margin: 0;
+  padding: 6px;
+  border: 1px solid #808080;
+  background: #f7f7f7;
+  min-height: 48px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.clock-properties__fields {
+  display: grid;
+  gap: 8px;
+}
+
+.clock-properties__field {
+  display: grid;
+  gap: 3px;
+}
+
+.clock-properties__check {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.clock-properties__inline-actions {
+  display: flex;
+}
+
+.clock-properties__footer {
+  display: grid;
+  gap: 6px;
+}
+
+.clock-properties__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.clock-properties__status {
+  font-size: 11px;
+  border-top: 1px solid #808080;
+  padding-top: 4px;
+}
+
+.timezone-map {
+  position: relative;
+  height: 122px;
+  border: 1px solid #808080;
+  background:
+    radial-gradient(circle at 20% 35%, rgba(96, 136, 73, 0.36) 0 24%, transparent 25%),
+    radial-gradient(circle at 52% 52%, rgba(96, 136, 73, 0.36) 0 22%, transparent 23%),
+    radial-gradient(circle at 82% 46%, rgba(96, 136, 73, 0.36) 0 20%, transparent 21%),
+    linear-gradient(180deg, #8ab4cf 0%, #6e9bb6 50%, #7ca8c0 100%);
+  overflow: hidden;
+}
+
+.timezone-map::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.18) 0,
+    rgba(255, 255, 255, 0.18) 1px,
+    transparent 1px,
+    transparent 24px
+  );
+}
+
+.timezone-map__zone {
+  position: absolute;
+  top: 0;
+  bottom: 18px;
+  transform: translateX(-50%);
+  border: 1px solid transparent;
+  background: rgba(0, 0, 128, 0.08);
+  padding: 0;
+  cursor: pointer;
+}
+
+.timezone-map__zone:hover,
+.timezone-map__zone:focus-visible {
+  border-color: rgba(255, 255, 255, 0.9);
+  outline: none;
+  background: rgba(0, 0, 128, 0.25);
+}
+
+.timezone-map__zone.is-selected {
+  background: rgba(255, 210, 82, 0.35);
+}
+
+.timezone-map__marker {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  transform: translateX(-50%);
+  border-top: 1px solid #000000;
+  border-right: 1px solid #000000;
+  border-left: 1px solid #000000;
+  padding: 2px 6px;
+  background: #efefef;
+  font-size: 10px;
+  max-width: 90%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .mobile-shell {
@@ -996,11 +1395,23 @@ select {
 }
 
 @media (max-width: 940px) {
+  .bios95-setup__body {
+    grid-template-columns: 1fr;
+  }
+
+  .boot95-screen__prelude {
+    min-height: 220px;
+  }
+
   .start-menu__shell {
     width: 270px;
   }
 
   .taskbar__window {
     min-width: 132px;
+  }
+
+  .timezone-map {
+    height: 108px;
   }
 }

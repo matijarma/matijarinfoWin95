@@ -8,8 +8,12 @@ const ICON_FILE_MAP = Object.freeze({
   run: "w95_67.ico",
   settings: "w95_61.ico",
   document: "w95_60.ico",
-  network: "w95_34.ico",
+  network: "w95_53.ico",
   volume: "w95_35.ico",
+  clock: "w95_64.ico",
+  modem: "w95_69.ico",
+  drive_hdd: "w95_6.ico",
+  drive_floppy: "w95_9.ico",
   app: "w95_6.ico",
 });
 

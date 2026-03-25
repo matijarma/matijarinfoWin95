@@ -67,6 +67,7 @@ export function createAppRegistry({
 
     const contentResult = manifest.createContent({
       app: manifest,
+      eventBus,
       fileLayer,
       mediaEngine,
       launchPayload,

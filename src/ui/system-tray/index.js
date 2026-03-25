@@ -15,11 +15,17 @@ export function createSystemTray({ container, items = [], onSelect } = {}) {
     for (const item of nextItems) {
       const button = document.createElement("button");
       button.type = "button";
-      button.className = "systray__item";
+      button.className = "systray__icon";
       button.title = item.label;
       button.dataset.trayId = item.id;
+      button.setAttribute("aria-label", item.label);
 
       button.append(createIconGlyph(item.iconKey, { compact: true }));
+
+      const labelNode = document.createElement("span");
+      labelNode.className = "systray__sr";
+      labelNode.textContent = item.label;
+      button.append(labelNode);
 
       button.addEventListener("click", (event) => {
         event.stopPropagation();

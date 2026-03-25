@@ -15,7 +15,7 @@ function getMenuButtons(menu) {
   );
 }
 
-export function createStartMenu({ root, entries, onSelect } = {}) {
+export function createStartMenu({ root, entries, onSelect, onVisibilityChange } = {}) {
   if (!root) {
     throw new Error("createStartMenu requires a root element.");
   }
@@ -227,13 +227,23 @@ export function createStartMenu({ root, entries, onSelect } = {}) {
   }
 
   function open() {
+    if (!root.classList.contains("is-hidden")) {
+      return;
+    }
+
     root.classList.remove("is-hidden");
+    onVisibilityChange?.(true);
     focusFirst();
   }
 
   function close() {
+    if (root.classList.contains("is-hidden")) {
+      return;
+    }
+
     root.classList.add("is-hidden");
     closeSubmenus();
+    onVisibilityChange?.(false);
   }
 
   function toggle() {

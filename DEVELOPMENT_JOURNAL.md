@@ -234,3 +234,42 @@ This file is append-only and serves as the running log for project progress.
 - Next steps:
   - Add explicit “Reset Desktop Icons” action in desktop context menu for persisted-layout recovery.
   - Expand accelerator parity to additional menus/context menus where applicable.
+
+## 2026-03-24 11:04 (CET)
+- Summary: Delivered major Win95 fidelity pass with interactive BIOS setup hardware tuning, slower staged 386 boot flow, and full clock/timezone properties integration.
+- Changes made:
+  - Added shared preferences module `src/core/system-preferences/index.js`:
+    - BIOS profile persistence and normalization (CPU, modem, turbo NIC, cache/memory test toggles).
+    - Dynamic BIOS POST line generation (no CD-ROM, floppy + dual HDD layout).
+    - Boot duration estimation tied to BIOS profile (overclock/turbo options influence startup delay).
+    - Clock profile persistence with default `hr-HR`, Zagreb/CET-like timezone entry, and 24-hour formatting.
+    - Timezone preset dataset and helpers for map positioning and timezone-based date/time conversion.
+  - Reworked desktop shell lifecycle:
+    - Added `DEL`-triggered BIOS setup utility with keyboard shortcuts (`F10`, `ESC`, `F1`) and funny "ludicrous defaults".
+    - Added interactive BIOS controls including CPU up to 80MHz, network turbo 10 MBps, modem 56k mode, and related summary telemetry.
+    - Replaced one-stage boot screen with staged DOS prelude + delayed Windows splash/progress to emulate slower 386 startup.
+    - Wired boot requests to include profile-derived duration payloads.
+  - Updated runtime/kernel integration:
+    - `os-kernel.boot()` now accepts optional per-boot duration overrides.
+    - Desktop entrypoint now passes requested boot duration from shell to kernel.
+  - Added Date/Time Properties app:
+    - New hidden manifest app launchable via Run (`timedate`) and Control Panel.
+    - Taskbar clock now reflects persisted timezone/locale/24h profile.
+    - Double-clicking taskbar clock opens Date/Time Properties.
+    - Timezone tab includes a Win95-style clickable map + preset dropdown, with apply/sync behavior.
+  - Updated shell UI details:
+    - Start button active-state fidelity and start-menu visibility sync improvements.
+    - Removed start menu bottom dead-space by dropping forced minimum height.
+    - Refined systray icon treatment and content (network/modem state surfaced from BIOS profile).
+    - Added safer power-off hint copy for post-shutdown state.
+  - Expanded icon mapping with classic drive/clock/modem assets for better contextual visuals.
+  - Ran syntax checks across all JS modules (`node --check` per file) successfully.
+- Decisions:
+  - Keep BIOS/clock profiles localStorage-backed and shared by shell/apps to avoid duplicating state logic.
+  - Use hidden app manifest for Date/Time Properties so it remains system-internal but launchable by shell affordances.
+- Risks / blockers:
+  - Timezone map is a custom approximation of Win95 behavior/visuals, not a pixel-exact legacy asset.
+  - No browser automation pass was executed in this iteration; behavior verified at static/syntax level.
+- Next steps:
+  - Run manual browser QA for BIOS setup flows, boot pacing, start menu spacing, and clock interaction paths.
+  - Fine-tune timezone map hitbox widths and marker placement after visual QA on multiple viewport sizes.

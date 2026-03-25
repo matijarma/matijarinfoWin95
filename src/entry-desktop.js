@@ -33,8 +33,8 @@ export function mountDesktopRuntime(root) {
   const cleanupFns = [];
 
   cleanupFns.push(
-    eventBus.on("shell:power-on-requested", () => {
-      void kernel.boot();
+    eventBus.on("shell:power-on-requested", ({ bootDurationMs } = {}) => {
+      void kernel.boot({ bootDurationMs });
     }),
   );
 

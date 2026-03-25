@@ -1,4 +1,19 @@
 import { OS_STATES } from "../core/os-kernel/states.js";
+import {
+  BIOS_CPU_SPEED_OPTIONS,
+  BIOS_MODEM_SPEED_OPTIONS,
+  buildBiosPostLines,
+  estimateBootDurationMs,
+  formatClockTime,
+  formatClockTooltip,
+  getBiosCpuLabel,
+  getBiosModemLabel,
+  getBiosNetworkLabel,
+  getClockDate,
+  readBiosProfile,
+  readClockProfile,
+  writeBiosProfile,
+} from "../core/system-preferences/index.js";
 import { createContextMenu } from "../ui/context-menu/index.js";
 import { createIconSurface } from "../ui/icon-surface/index.js";
 import { createIconGlyph, createWindowsLogoGlyph } from "../ui/icons/index.js";
@@ -18,20 +33,31 @@ const SHUTDOWN_VIDEO_URL = new URL(
   import.meta.url,
 ).toString();
 const DESKTOP_ICON_POSITIONS_STORAGE_KEY = "win95.desktop.iconPositions.v1";
-const BIOS_POST_LINES = [
-  "Phoenix BIOS A486 Version 1.10",
-  "Copyright 1985-1994 Phoenix Technologies Ltd.",
-  "",
-  "CPU = Intel 80386DX (33 MHz)",
-  "Memory Test: 8192K OK",
-  "Primary Master: 256MB IDE HDD",
-  "Primary Slave: None",
-  "Secondary Master: ATAPI CD-ROM",
-  "Secondary Slave: None",
-  "",
-  "Detecting floppy drive A... 1.44MB",
-  "Initializing Plug and Play cards...",
-];
+
+function buildBootPreludeLines(biosProfile) {
+  const lines = [
+    "Starting MS-DOS...",
+    "CONFIG.SYS: DEVICE=HIMEM.SYS /TESTMEM:ON",
+    "CONFIG.SYS: DEVICE=EMM386.EXE RAM 4096",
+    "AUTOEXEC.BAT: SMARTDRV /X",
+    "AUTOEXEC.BAT: SET TEMP=C:\\WINDOWS\\TEMP",
+    `Detected CPU profile: ${getBiosCpuLabel(biosProfile)}`,
+    `Network stack: ${getBiosNetworkLabel(biosProfile)}`,
+    `Dial-up modem: ${getBiosModemLabel(biosProfile)}`,
+  ];
+
+  if (biosProfile.cpuMHz >= 66) {
+    lines.push("Warning: Overclock profile active. Keep your coffee nearby.");
+  }
+
+  if (biosProfile.cacheMode === "reckless") {
+    lines.push("L2 cache mode: Reckless Turbo");
+  }
+
+  lines.push("Starting Windows 95...");
+
+  return lines;
+}
 
 function getBiosLineDelayMs(line) {
   if (!line) {
@@ -47,6 +73,18 @@ function getBiosLineDelayMs(line) {
   }
 
   return 110;
+}
+
+function getBootPreludeLineDelayMs(line) {
+  if (line.includes("Warning")) {
+    return 900;
+  }
+
+  if (line.startsWith("Starting")) {
+    return 700;
+  }
+
+  return 420;
 }
 
 function normalizeStoredDesktopPosition(candidate) {
@@ -170,7 +208,9 @@ function createStartMenuEntries(appRegistry) {
       id: "start-settings",
       label: "&Settings",
       iconKey: "settings",
-      children: [createAppEntry("control-panel")].filter(Boolean),
+      children: [createAppEntry("control-panel"), createAppEntry("date-time-properties")].filter(
+        Boolean,
+      ),
     },
     {
       type: "submenu",
@@ -267,6 +307,10 @@ export function createDesktopShell({ root, eventBus, appRegistry, windowManager 
 
   const cleanupFns = [];
   let hasBootedOnce = false;
+  let powerOffMode = "post";
+  let biosProfile = readBiosProfile();
+  let pendingBootDurationMs = estimateBootDurationMs(biosProfile);
+  let clockProfile = readClockProfile();
 
   function clearSideEffects() {
     while (cleanupFns.length > 0) {
@@ -275,9 +319,295 @@ export function createDesktopShell({ root, eventBus, appRegistry, windowManager 
     }
   }
 
+  function requestBoot(nextProfile = biosProfile) {
+    biosProfile = { ...nextProfile };
+    pendingBootDurationMs = estimateBootDurationMs(biosProfile);
+    powerOffMode = "post";
+    eventBus.emit("shell:power-on-requested", {
+      biosProfile,
+      bootDurationMs: pendingBootDurationMs,
+    });
+  }
+
+  function renderBiosSetup() {
+    root.className = "shell-root shell-root--state";
+    root.innerHTML = `
+      <main class="bios95-setup" data-testid="bios-setup">
+        <header class="bios95-setup__header">
+          <span>PhoenixBIOS Setup Utility</span>
+          <span>A486 Rev 1.10</span>
+        </header>
+        <div class="bios95-setup__body">
+          <section class="bios95-setup__panel">
+            <h2 class="bios95-setup__title">Advanced Configuration</h2>
+            <div class="bios95-setup__grid">
+              <div class="bios95-setup__row">
+                <span class="bios95-setup__label">CPU Clock</span>
+                <div class="bios95-setup__spinner">
+                  <button type="button" class="bios95-setup__button" data-bios-action="cpu-down">-</button>
+                  <span class="bios95-setup__value" data-bios-value="cpu"></span>
+                  <button type="button" class="bios95-setup__button" data-bios-action="cpu-up">+</button>
+                </div>
+              </div>
+              <div class="bios95-setup__row">
+                <span class="bios95-setup__label">Modem Profile</span>
+                <div class="bios95-setup__spinner">
+                  <button type="button" class="bios95-setup__button" data-bios-action="modem-down">-</button>
+                  <span class="bios95-setup__value" data-bios-value="modem"></span>
+                  <button type="button" class="bios95-setup__button" data-bios-action="modem-up">+</button>
+                </div>
+              </div>
+              <div class="bios95-setup__row">
+                <span class="bios95-setup__label">Network Adapter</span>
+                <button type="button" class="bios95-setup__toggle" data-bios-action="toggle-network"></button>
+              </div>
+              <div class="bios95-setup__row">
+                <span class="bios95-setup__label">Memory Test</span>
+                <button type="button" class="bios95-setup__toggle" data-bios-action="toggle-memory"></button>
+              </div>
+              <div class="bios95-setup__row">
+                <span class="bios95-setup__label">Cache Mode</span>
+                <button type="button" class="bios95-setup__toggle" data-bios-action="toggle-cache"></button>
+              </div>
+              <div class="bios95-setup__row">
+                <span class="bios95-setup__label">Boot Sector Protection</span>
+                <button type="button" class="bios95-setup__toggle" data-bios-action="toggle-protection"></button>
+              </div>
+              <div class="bios95-setup__row">
+                <span class="bios95-setup__label">Drive A</span>
+                <button type="button" class="bios95-setup__toggle" data-bios-action="toggle-floppy"></button>
+              </div>
+            </div>
+            <div class="bios95-setup__drives">
+              <p>Primary Master: SYS HDD 128MB (C:)</p>
+              <p>Primary Slave: STORAGE HDD 512MB (D:)</p>
+              <p>Secondary Master: None (CD-ROM removed for historical accuracy)</p>
+            </div>
+          </section>
+          <aside class="bios95-setup__panel bios95-setup__panel--summary">
+            <h2 class="bios95-setup__title">System Summary</h2>
+            <ul class="bios95-setup__summary" data-bios-summary></ul>
+            <p class="bios95-setup__quip" data-bios-quip></p>
+            <div class="bios95-setup__quick-actions">
+              <button type="button" class="bios95-setup__button" data-bios-action="load-ludicrous">Load Ludicrous Defaults</button>
+              <button type="button" class="bios95-setup__button" data-bios-action="load-safe">Load Fail-Safe Defaults</button>
+            </div>
+          </aside>
+        </div>
+        <footer class="bios95-setup__footer">
+          <div class="bios95-setup__footer-actions">
+            <button type="button" class="bios95-setup__button" data-bios-action="save-exit">Save &amp; Exit</button>
+            <button type="button" class="bios95-setup__button" data-bios-action="cancel-exit">Exit Without Saving</button>
+            <button type="button" class="bios95-setup__button bios95-setup__button--primary" data-bios-action="boot-now">Boot Windows 95</button>
+          </div>
+          <p class="bios95-setup__help">F10 Save | ESC Cancel | F1 Boot</p>
+        </footer>
+      </main>
+    `;
+
+    let draftProfile = { ...biosProfile };
+    const summaryNode = root.querySelector("[data-bios-summary]");
+    const quipNode = root.querySelector("[data-bios-quip]");
+    const cpuValueNode = root.querySelector('[data-bios-value="cpu"]');
+    const modemValueNode = root.querySelector('[data-bios-value="modem"]');
+    const networkToggleButton = root.querySelector('[data-bios-action="toggle-network"]');
+    const memoryToggleButton = root.querySelector('[data-bios-action="toggle-memory"]');
+    const cacheToggleButton = root.querySelector('[data-bios-action="toggle-cache"]');
+    const protectionToggleButton = root.querySelector('[data-bios-action="toggle-protection"]');
+    const floppyToggleButton = root.querySelector('[data-bios-action="toggle-floppy"]');
+
+    function spinOption(options, currentValue, direction) {
+      const currentIndex = options.indexOf(currentValue);
+      const startIndex = currentIndex === -1 ? 0 : currentIndex;
+      const nextIndex = (startIndex + direction + options.length) % options.length;
+      return options[nextIndex];
+    }
+
+    function updateSetupView() {
+      if (cpuValueNode) {
+        cpuValueNode.textContent = `${draftProfile.cpuMHz} MHz`;
+      }
+
+      if (modemValueNode) {
+        modemValueNode.textContent =
+          draftProfile.modemKbps >= 56 ? "56k (V.90)" : "33.6k (V.34)";
+      }
+
+      if (networkToggleButton) {
+        networkToggleButton.textContent = draftProfile.networkTurbo
+          ? "Turbo 10 MBps (Experimental)"
+          : "NE2000 Compatible (2 MBps)";
+      }
+
+      if (memoryToggleButton) {
+        memoryToggleButton.textContent =
+          draftProfile.memoryTest === "full" ? "Full POST Test" : "Quick POST";
+      }
+
+      if (cacheToggleButton) {
+        cacheToggleButton.textContent =
+          draftProfile.cacheMode === "reckless" ? "Reckless Turbo" : "Safe";
+      }
+
+      if (protectionToggleButton) {
+        protectionToggleButton.textContent = draftProfile.bootSectorProtection
+          ? "Enabled"
+          : "Disabled";
+      }
+
+      if (floppyToggleButton) {
+        floppyToggleButton.textContent = draftProfile.floppyEnabled ? "1.44MB Enabled" : "Disabled";
+      }
+
+      if (summaryNode) {
+        summaryNode.innerHTML = "";
+        const summaryLines = [
+          `CPU: ${getBiosCpuLabel(draftProfile)}`,
+          `Network: ${getBiosNetworkLabel(draftProfile)}`,
+          `Modem: ${getBiosModemLabel(draftProfile)}`,
+          `Expected Boot Delay: ${(estimateBootDurationMs(draftProfile) / 1000).toFixed(1)}s`,
+        ];
+
+        for (const line of summaryLines) {
+          const item = document.createElement("li");
+          item.textContent = line;
+          summaryNode.append(item);
+        }
+      }
+
+      if (quipNode) {
+        if (draftProfile.cpuMHz >= 80) {
+          quipNode.textContent = "80MHz selected. This machine now runs on hope and airflow.";
+          return;
+        }
+
+        if (draftProfile.networkTurbo && draftProfile.modemKbps >= 56) {
+          quipNode.textContent =
+            "Network turbo + 56k modem enabled. The internet has never loaded this quickly in 1995.";
+          return;
+        }
+
+        quipNode.textContent = "Tip: Delete key got you here. F1 still boots Windows 95.";
+      }
+    }
+
+    function closeSetup(saveDraft = false) {
+      if (saveDraft) {
+        biosProfile = writeBiosProfile(draftProfile);
+      }
+
+      powerOffMode = "post";
+      render(OS_STATES.POWER_OFF);
+    }
+
+    function handleSetupAction(actionName) {
+      if (actionName === "cpu-down") {
+        draftProfile.cpuMHz = spinOption(BIOS_CPU_SPEED_OPTIONS, draftProfile.cpuMHz, -1);
+      } else if (actionName === "cpu-up") {
+        draftProfile.cpuMHz = spinOption(BIOS_CPU_SPEED_OPTIONS, draftProfile.cpuMHz, 1);
+      } else if (actionName === "modem-down") {
+        draftProfile.modemKbps = spinOption(BIOS_MODEM_SPEED_OPTIONS, draftProfile.modemKbps, -1);
+      } else if (actionName === "modem-up") {
+        draftProfile.modemKbps = spinOption(BIOS_MODEM_SPEED_OPTIONS, draftProfile.modemKbps, 1);
+      } else if (actionName === "toggle-network") {
+        draftProfile.networkTurbo = !draftProfile.networkTurbo;
+      } else if (actionName === "toggle-memory") {
+        draftProfile.memoryTest = draftProfile.memoryTest === "full" ? "quick" : "full";
+      } else if (actionName === "toggle-cache") {
+        draftProfile.cacheMode = draftProfile.cacheMode === "safe" ? "reckless" : "safe";
+      } else if (actionName === "toggle-protection") {
+        draftProfile.bootSectorProtection = !draftProfile.bootSectorProtection;
+      } else if (actionName === "toggle-floppy") {
+        draftProfile.floppyEnabled = !draftProfile.floppyEnabled;
+      } else if (actionName === "load-ludicrous") {
+        draftProfile = {
+          ...draftProfile,
+          cpuMHz: 80,
+          networkTurbo: true,
+          modemKbps: 56,
+          memoryTest: "quick",
+          cacheMode: "reckless",
+          bootSectorProtection: false,
+        };
+      } else if (actionName === "load-safe") {
+        draftProfile = {
+          ...draftProfile,
+          cpuMHz: 33,
+          networkTurbo: false,
+          modemKbps: 33,
+          memoryTest: "full",
+          cacheMode: "safe",
+          bootSectorProtection: true,
+          floppyEnabled: true,
+        };
+      } else if (actionName === "save-exit") {
+        closeSetup(true);
+        return;
+      } else if (actionName === "cancel-exit") {
+        closeSetup(false);
+        return;
+      } else if (actionName === "boot-now") {
+        biosProfile = writeBiosProfile(draftProfile);
+        requestBoot(biosProfile);
+        return;
+      }
+
+      updateSetupView();
+    }
+
+    const clickHandler = (event) => {
+      const source = event.target instanceof Element ? event.target : null;
+      const trigger = source?.closest("[data-bios-action]");
+      const actionName = trigger?.dataset.biosAction;
+
+      if (!actionName) {
+        return;
+      }
+
+      handleSetupAction(actionName);
+    };
+
+    const keydownHandler = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeSetup(false);
+        return;
+      }
+
+      if (event.key === "F10") {
+        event.preventDefault();
+        closeSetup(true);
+        return;
+      }
+
+      if (event.key === "F1") {
+        event.preventDefault();
+        biosProfile = writeBiosProfile(draftProfile);
+        requestBoot(biosProfile);
+      }
+    };
+
+    root.addEventListener("click", clickHandler);
+    document.addEventListener("keydown", keydownHandler);
+    cleanupFns.push(() => {
+      root.removeEventListener("click", clickHandler);
+      document.removeEventListener("keydown", keydownHandler);
+    });
+
+    updateSetupView();
+    windowManager.setContainer(null);
+  }
+
   function renderPowerOff() {
     root.className = "shell-root shell-root--state";
+
     if (!hasBootedOnce) {
+      if (powerOffMode === "setup") {
+        renderBiosSetup();
+        return;
+      }
+
+      const biosPostLines = buildBiosPostLines(biosProfile);
       root.innerHTML = `
         <main class="bios95-screen" data-testid="os-state-screen">
           <section class="bios95-screen__viewport">
@@ -302,7 +632,7 @@ export function createDesktopShell({ root, eventBus, appRegistry, windowManager 
           return;
         }
 
-        if (biosLineIndex >= BIOS_POST_LINES.length) {
+        if (biosLineIndex >= biosPostLines.length) {
           errorNode?.removeAttribute("hidden");
           promptNode?.removeAttribute("hidden");
           hintNode?.removeAttribute("hidden");
@@ -310,7 +640,7 @@ export function createDesktopShell({ root, eventBus, appRegistry, windowManager 
           return;
         }
 
-        const nextLine = BIOS_POST_LINES[biosLineIndex];
+        const nextLine = biosPostLines[biosLineIndex];
         outputNode.textContent = outputNode.textContent
           ? `${outputNode.textContent}\n${nextLine}`
           : nextLine;
@@ -322,12 +652,21 @@ export function createDesktopShell({ root, eventBus, appRegistry, windowManager 
       renderNextBiosLine();
 
       const keydownHandler = (event) => {
-        if (event.key !== "F1" || !biosReadyForInput) {
+        if (!biosReadyForInput) {
           return;
         }
 
-        event.preventDefault();
-        eventBus.emit("shell:power-on-requested");
+        if (event.key === "F1") {
+          event.preventDefault();
+          requestBoot();
+          return;
+        }
+
+        if (event.key === "Delete") {
+          event.preventDefault();
+          powerOffMode = "setup";
+          render(OS_STATES.POWER_OFF);
+        }
       };
 
       document.addEventListener("keydown", keydownHandler);
@@ -346,6 +685,7 @@ export function createDesktopShell({ root, eventBus, appRegistry, windowManager 
         <div class="safeoff95-screen__message">
           It is now safe to turn off your computer.
         </div>
+        <p class="safeoff95-screen__hint">Power cycle required. This 386 has no soft restart.</p>
       </main>
     `;
 
@@ -356,18 +696,108 @@ export function createDesktopShell({ root, eventBus, appRegistry, windowManager 
     root.className = "shell-root shell-root--state";
     root.innerHTML = `
       <main class="boot95-screen" data-testid="booting-screen">
-        <section class="boot95-screen__asset">
+        <section class="boot95-screen__prelude" data-boot-prelude>
+          <pre class="boot95-screen__log" data-boot-log></pre>
+          <p class="boot95-screen__status" data-boot-status>Performing startup sequence...</p>
+        </section>
+        <section class="boot95-screen__asset" data-boot-asset hidden>
           <img src="${BOOT_SCREEN_IMAGE_URL}" class="boot95-screen__image" alt="Windows 95 startup screen" />
-          <div class="boot95-screen__bar"><span class="boot95-screen__bar-fill"></span></div>
+          <div class="boot95-screen__bar"><span class="boot95-screen__bar-fill" data-boot-progress></span></div>
+          <p class="boot95-screen__final-status" data-boot-final-status>Starting Windows 95 shell...</p>
         </section>
       </main>
     `;
+
+    const preludeNode = root.querySelector("[data-boot-prelude]");
+    const logNode = root.querySelector("[data-boot-log]");
+    const statusNode = root.querySelector("[data-boot-status]");
+    const bootAssetNode = root.querySelector("[data-boot-asset]");
+    const progressNode = root.querySelector("[data-boot-progress]");
+    const finalStatusNode = root.querySelector("[data-boot-final-status]");
+    const bootLines = buildBootPreludeLines(biosProfile);
+    const lineDurationMs = Math.max(240, Math.floor((pendingBootDurationMs * 0.42) / bootLines.length));
+    const preludeExpectedDurationMs = lineDurationMs * bootLines.length;
+    const progressPhaseDurationMs = Math.max(2200, pendingBootDurationMs - preludeExpectedDurationMs);
+
+    let bootLineIndex = 0;
+    let preludeTimerId = null;
+    let progressIntervalId = null;
+
+    function startProgressPhase() {
+      preludeNode?.setAttribute("hidden", "hidden");
+      bootAssetNode?.removeAttribute("hidden");
+      const progressStartTimestamp = Date.now();
+
+      progressIntervalId = window.setInterval(() => {
+        if (!progressNode) {
+          return;
+        }
+
+        const elapsedMs = Date.now() - progressStartTimestamp;
+        const progressRatio = Math.min(1, elapsedMs / progressPhaseDurationMs);
+        const jitter = (Math.sin(elapsedMs / 260) + 1) * 1.2;
+        const visiblePercent = Math.min(97, Math.max(1, progressRatio * 100 - 1.8 + jitter));
+
+        progressNode.style.width = `${visiblePercent}%`;
+
+        if (!finalStatusNode) {
+          return;
+        }
+
+        if (visiblePercent < 45) {
+          finalStatusNode.textContent = "Loading VxD drivers...";
+          return;
+        }
+
+        if (visiblePercent < 75) {
+          finalStatusNode.textContent = "Initializing dial-up networking...";
+          return;
+        }
+
+        finalStatusNode.textContent = "Painting desktop and taskbar...";
+      }, 120);
+    }
+
+    function renderNextBootLine() {
+      if (bootLineIndex >= bootLines.length) {
+        if (statusNode) {
+          statusNode.textContent = "DOS phase complete.";
+        }
+        startProgressPhase();
+        return;
+      }
+
+      const nextLine = bootLines[bootLineIndex];
+      if (logNode) {
+        logNode.textContent = logNode.textContent
+          ? `${logNode.textContent}\n${nextLine}`
+          : nextLine;
+      }
+      if (statusNode) {
+        statusNode.textContent = nextLine;
+      }
+      bootLineIndex += 1;
+      preludeTimerId = window.setTimeout(
+        renderNextBootLine,
+        Math.max(lineDurationMs, getBootPreludeLineDelayMs(nextLine)),
+      );
+    }
+
+    renderNextBootLine();
 
     const bootAudio = new Audio(BOOT_SOUND_URL);
     bootAudio.volume = 0.86;
     void bootAudio.play().catch(() => {});
 
     cleanupFns.push(() => {
+      if (preludeTimerId !== null) {
+        clearTimeout(preludeTimerId);
+      }
+
+      if (progressIntervalId !== null) {
+        clearInterval(progressIntervalId);
+      }
+
       bootAudio.pause();
       bootAudio.src = "";
     });
@@ -407,6 +837,7 @@ export function createDesktopShell({ root, eventBus, appRegistry, windowManager 
 
   function renderDesktop() {
     root.className = "shell-root shell-root--desktop";
+    clockProfile = readClockProfile();
     const storedIconPositions = readDesktopIconPositionsFromStorage();
 
     const desktopApps = appRegistry
@@ -580,6 +1011,9 @@ export function createDesktopShell({ root, eventBus, appRegistry, windowManager 
     const startMenu = createStartMenu({
       root: startMenuNode,
       entries: createStartMenuEntries(appRegistry),
+      onVisibilityChange() {
+        syncStartButtonState();
+      },
       onSelect(entry) {
         if (entry.type === "app" && entry.appId) {
           eventBus.emit("shell:app-launch-requested", { appId: entry.appId });
@@ -600,7 +1034,12 @@ export function createDesktopShell({ root, eventBus, appRegistry, windowManager 
       },
     });
 
+    function syncStartButtonState() {
+      startButton?.classList.toggle("is-open", startMenu.isOpen());
+    }
+
     cleanupFns.push(() => startMenu.destroy());
+    syncStartButtonState();
 
     if (startButton) {
       const startClickHandler = (event) => {
@@ -609,6 +1048,7 @@ export function createDesktopShell({ root, eventBus, appRegistry, windowManager 
           contextMenu.close();
         }
         startMenu.toggle();
+        syncStartButtonState();
       };
 
       startButton.addEventListener("click", startClickHandler);
@@ -623,6 +1063,7 @@ export function createDesktopShell({ root, eventBus, appRegistry, windowManager 
       }
 
       startMenu.close();
+      syncStartButtonState();
     };
 
     document.addEventListener("pointerdown", outsideClickHandler);
@@ -641,9 +1082,15 @@ export function createDesktopShell({ root, eventBus, appRegistry, windowManager 
         },
         {
           id: "tray-network",
-          label: "Network",
+          label: `Network Adapter: ${getBiosNetworkLabel(biosProfile)}`,
           iconKey: "network",
           command: "open-browser",
+        },
+        {
+          id: "tray-modem",
+          label: `Dial-Up Modem: ${getBiosModemLabel(biosProfile)}`,
+          iconKey: "modem",
+          command: "open-datetime",
         },
       ],
       onSelect(item) {
@@ -656,6 +1103,12 @@ export function createDesktopShell({ root, eventBus, appRegistry, windowManager 
             appId: "internet-explorer",
           });
         }
+
+        if (item.command === "open-datetime") {
+          eventBus.emit("shell:app-launch-requested", {
+            appId: "date-time-properties",
+          });
+        }
       },
     });
 
@@ -666,16 +1119,50 @@ export function createDesktopShell({ root, eventBus, appRegistry, windowManager 
         return;
       }
 
-      clockNode.textContent = new Date().toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
+      const virtualNow = getClockDate(clockProfile);
+      clockNode.textContent = formatClockTime(clockProfile, virtualNow);
+      clockNode.title = formatClockTooltip(clockProfile, virtualNow);
     };
 
     updateClock();
 
+    const openClockProperties = () => {
+      eventBus.emit("shell:app-launch-requested", { appId: "date-time-properties" });
+    };
+
+    if (clockNode) {
+      clockNode.tabIndex = 0;
+      clockNode.setAttribute("role", "button");
+      clockNode.setAttribute("aria-label", "Clock. Double-click to open Date/Time Properties.");
+
+      const clockDoubleClickHandler = (event) => {
+        event.stopPropagation();
+        openClockProperties();
+      };
+
+      const clockKeydownHandler = (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          openClockProperties();
+        }
+      };
+
+      clockNode.addEventListener("dblclick", clockDoubleClickHandler);
+      clockNode.addEventListener("keydown", clockKeydownHandler);
+      cleanupFns.push(() => {
+        clockNode.removeEventListener("dblclick", clockDoubleClickHandler);
+        clockNode.removeEventListener("keydown", clockKeydownHandler);
+      });
+    }
+
     const clockInterval = setInterval(updateClock, 1000);
     cleanupFns.push(() => clearInterval(clockInterval));
+    cleanupFns.push(
+      eventBus.on("clock:profile-changed", ({ profile }) => {
+        clockProfile = profile || readClockProfile();
+        updateClock();
+      }),
+    );
 
     function openSystemMenuForWindow(windowId, coordinates) {
       const windowState = windowManager.getWindow(windowId);
@@ -831,6 +1318,7 @@ export function createDesktopShell({ root, eventBus, appRegistry, windowManager 
 
         if (startMenu.isOpen()) {
           startMenu.close();
+          syncStartButtonState();
           return;
         }
 
@@ -857,6 +1345,7 @@ export function createDesktopShell({ root, eventBus, appRegistry, windowManager 
       if (event.ctrlKey && event.key === "Escape") {
         event.preventDefault();
         startMenu.open();
+        syncStartButtonState();
       }
     };
 

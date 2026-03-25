@@ -15,7 +15,13 @@ function getMenuButtons(menu) {
   );
 }
 
-export function createStartMenu({ root, entries, onSelect, onVisibilityChange } = {}) {
+export function createStartMenu({
+  root,
+  entries,
+  onSelect,
+  onVisibilityChange,
+  railLabel = "Windows",
+} = {}) {
   if (!root) {
     throw new Error("createStartMenu requires a root element.");
   }
@@ -160,7 +166,11 @@ export function createStartMenu({ root, entries, onSelect, onVisibilityChange } 
 
   const rail = document.createElement("aside");
   rail.className = "start-menu__rail";
-  rail.innerHTML = '<span class="start-menu__rail-text">Windows</span>';
+
+  const railText = document.createElement("span");
+  railText.className = "start-menu__rail-text";
+  railText.textContent = railLabel;
+  rail.append(railText);
 
   const content = document.createElement("section");
   content.className = "start-menu__content";

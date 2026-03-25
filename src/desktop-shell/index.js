@@ -14,27 +14,30 @@ import {
   readClockProfile,
   writeBiosProfile,
 } from "../core/system-preferences/index.js";
+import {
+  getDesktopIconPositionsStorageKey,
+  resolveDesktopProfile,
+} from "./profiles.js";
 import { createContextMenu } from "../ui/context-menu/index.js";
 import { createIconSurface } from "../ui/icon-surface/index.js";
 import { createIconGlyph, createWindowsLogoGlyph } from "../ui/icons/index.js";
 import { createStartMenu } from "../ui/start-menu/index.js";
 import { createSystemTray } from "../ui/system-tray/index.js";
 
-const BOOT_SCREEN_IMAGE_URL = new URL(
+const WIN95_BOOT_SCREEN_IMAGE_URL = new URL(
   "../../visuals-to-use/win95bootscreen.png",
   import.meta.url,
 ).toString();
-const BOOT_SOUND_URL = new URL(
+const WIN95_BOOT_SOUND_URL = new URL(
   "../../visuals-to-use/win95bootsound.aac",
   import.meta.url,
 ).toString();
-const SHUTDOWN_VIDEO_URL = new URL(
+const WIN95_SHUTDOWN_VIDEO_URL = new URL(
   "../../visuals-to-use/win95shutdownvideoaudio.mp4",
   import.meta.url,
 ).toString();
-const DESKTOP_ICON_POSITIONS_STORAGE_KEY = "win95.desktop.iconPositions.v1";
 
-function buildBootPreludeLines(biosProfile) {
+function buildBootPreludeLines(biosProfile, shellProfile) {
   const lines = [
     "Starting MS-DOS...",
     "CONFIG.SYS: DEVICE=HIMEM.SYS /TESTMEM:ON",
@@ -54,7 +57,9 @@ function buildBootPreludeLines(biosProfile) {
     lines.push("L2 cache mode: Reckless Turbo");
   }
 
-  lines.push("Starting Windows 95...");
+  lines.push(
+    shellProfile.bootCopy?.preludeLastLine || `Starting ${shellProfile.displayName}...`,
+  );
 
   return lines;
 }
@@ -87,6 +92,36 @@ function getBootPreludeLineDelayMs(line) {
   return 420;
 }
 
+function resolveBootProgressStatus(shellProfile, visiblePercent) {
+  const phases = Array.isArray(shellProfile.bootCopy?.finalStatusMilestones)
+    ? shellProfile.bootCopy.finalStatusMilestones
+    : [];
+
+  for (const phase of phases) {
+    if (!phase || !Number.isFinite(phase.maxVisiblePercent)) {
+      continue;
+    }
+
+    if (visiblePercent < phase.maxVisiblePercent) {
+      return phase.text || "";
+    }
+  }
+
+  if (phases.length > 0) {
+    return shellProfile.bootCopy?.finalStatusText || phases[phases.length - 1]?.text || "";
+  }
+
+  if (visiblePercent < 45) {
+    return "Loading VxD drivers...";
+  }
+
+  if (visiblePercent < 75) {
+    return "Initializing dial-up networking...";
+  }
+
+  return shellProfile.bootCopy?.finalStatusText || "Painting desktop and taskbar...";
+}
+
 function normalizeStoredDesktopPosition(candidate) {
   if (!candidate || typeof candidate !== "object") {
     return null;
@@ -105,13 +140,13 @@ function normalizeStoredDesktopPosition(candidate) {
   };
 }
 
-function readDesktopIconPositionsFromStorage() {
+function readDesktopIconPositionsFromStorage(storageKey) {
   try {
     if (!("localStorage" in window)) {
       return {};
     }
 
-    const rawValue = window.localStorage.getItem(DESKTOP_ICON_POSITIONS_STORAGE_KEY);
+    const rawValue = window.localStorage.getItem(storageKey);
 
     if (!rawValue) {
       return {};
@@ -139,16 +174,13 @@ function readDesktopIconPositionsFromStorage() {
   }
 }
 
-function persistDesktopIconPositions(positionsById) {
+function persistDesktopIconPositions(storageKey, positionsById) {
   try {
     if (!("localStorage" in window)) {
       return;
     }
 
-    window.localStorage.setItem(
-      DESKTOP_ICON_POSITIONS_STORAGE_KEY,
-      JSON.stringify(positionsById || {}),
-    );
+    window.localStorage.setItem(storageKey, JSON.stringify(positionsById || {}));
   } catch {
     // Ignore storage errors (private mode, quota, and others).
   }
@@ -410,10 +442,24 @@ function buildSystemMenuEntries(windowState) {
   ];
 }
 
-export function createDesktopShell({ root, eventBus, appRegistry, windowManager }) {
+export function createDesktopShell({
+  root,
+  eventBus,
+  appRegistry,
+  windowManager,
+  desktopProfile = "win95",
+} = {}) {
   if (!root) {
     throw new Error("createDesktopShell requires a root element.");
   }
+
+  const shellProfile = resolveDesktopProfile(desktopProfile);
+  const desktopIconPositionsStorageKey = getDesktopIconPositionsStorageKey(
+    shellProfile.id,
+  );
+  const bootScreenImageUrl = WIN95_BOOT_SCREEN_IMAGE_URL;
+  const bootSoundUrl = WIN95_BOOT_SOUND_URL;
+  const shutdownVideoUrl = WIN95_SHUTDOWN_VIDEO_URL;
 
   const cleanupFns = [];
   let hasBootedOnce = false;
@@ -508,7 +554,7 @@ export function createDesktopShell({ root, eventBus, appRegistry, windowManager 
           <div class="bios95-setup__footer-actions">
             <button type="button" class="bios95-setup__button" data-bios-action="save-exit">Save &amp; Exit</button>
             <button type="button" class="bios95-setup__button" data-bios-action="cancel-exit">Exit Without Saving</button>
-            <button type="button" class="bios95-setup__button bios95-setup__button--primary" data-bios-action="boot-now">Boot Windows 95</button>
+            <button type="button" class="bios95-setup__button bios95-setup__button--primary" data-bios-action="boot-now">Boot ${shellProfile.displayName}</button>
           </div>
           <p class="bios95-setup__help">F10 Save | ESC Cancel | F1 Boot</p>
         </footer>
@@ -597,7 +643,7 @@ export function createDesktopShell({ root, eventBus, appRegistry, windowManager 
           return;
         }
 
-        quipNode.textContent = "Tip: Delete key got you here. F1 still boots Windows 95.";
+        quipNode.textContent = `Tip: Delete key got you here. F1 still boots ${shellProfile.displayName}.`;
       }
     }
 
@@ -793,9 +839,9 @@ export function createDesktopShell({ root, eventBus, appRegistry, windowManager 
     root.innerHTML = `
       <main class="safeoff95-screen" data-testid="os-state-screen">
         <div class="safeoff95-screen__message">
-          It is now safe to turn off your computer.
+          ${shellProfile.shutdownCopy?.poweredOffText || "It is now safe to turn off your computer."}
         </div>
-        <p class="safeoff95-screen__hint">Power cycle required. This 386 has no soft restart.</p>
+        <p class="safeoff95-screen__hint">${shellProfile.shutdownCopy?.poweredOffHint || "Power cycle required. This 386 has no soft restart."}</p>
       </main>
     `;
 
@@ -808,12 +854,12 @@ export function createDesktopShell({ root, eventBus, appRegistry, windowManager 
       <main class="boot95-screen" data-testid="booting-screen">
         <section class="boot95-screen__prelude" data-boot-prelude>
           <pre class="boot95-screen__log" data-boot-log></pre>
-          <p class="boot95-screen__status" data-boot-status>Performing startup sequence...</p>
+          <p class="boot95-screen__status" data-boot-status>${shellProfile.bootCopy?.preludeInitialStatus || "Performing startup sequence..."}</p>
         </section>
         <section class="boot95-screen__asset" data-boot-asset hidden>
-          <img src="${BOOT_SCREEN_IMAGE_URL}" class="boot95-screen__image" alt="Windows 95 startup screen" />
+          <img src="${bootScreenImageUrl}" class="boot95-screen__image" alt="${shellProfile.bootScreenAltText || `${shellProfile.displayName} startup screen`}" />
           <div class="boot95-screen__bar"><span class="boot95-screen__bar-fill" data-boot-progress></span></div>
-          <p class="boot95-screen__final-status" data-boot-final-status>Starting Windows 95 shell...</p>
+          <p class="boot95-screen__final-status" data-boot-final-status>${shellProfile.bootCopy?.finalStatusText || `Starting ${shellProfile.displayName} shell...`}</p>
         </section>
       </main>
     `;
@@ -824,7 +870,7 @@ export function createDesktopShell({ root, eventBus, appRegistry, windowManager 
     const bootAssetNode = root.querySelector("[data-boot-asset]");
     const progressNode = root.querySelector("[data-boot-progress]");
     const finalStatusNode = root.querySelector("[data-boot-final-status]");
-    const bootLines = buildBootPreludeLines(biosProfile);
+    const bootLines = buildBootPreludeLines(biosProfile, shellProfile);
     const lineDurationMs = Math.max(240, Math.floor((pendingBootDurationMs * 0.42) / bootLines.length));
     const preludeExpectedDurationMs = lineDurationMs * bootLines.length;
     const progressPhaseDurationMs = Math.max(2200, pendingBootDurationMs - preludeExpectedDurationMs);
@@ -854,24 +900,18 @@ export function createDesktopShell({ root, eventBus, appRegistry, windowManager 
           return;
         }
 
-        if (visiblePercent < 45) {
-          finalStatusNode.textContent = "Loading VxD drivers...";
-          return;
-        }
-
-        if (visiblePercent < 75) {
-          finalStatusNode.textContent = "Initializing dial-up networking...";
-          return;
-        }
-
-        finalStatusNode.textContent = "Painting desktop and taskbar...";
+        finalStatusNode.textContent = resolveBootProgressStatus(
+          shellProfile,
+          visiblePercent,
+        );
       }, 120);
     }
 
     function renderNextBootLine() {
       if (bootLineIndex >= bootLines.length) {
         if (statusNode) {
-          statusNode.textContent = "DOS phase complete.";
+          statusNode.textContent =
+            shellProfile.bootCopy?.preludeCompleteStatus || "DOS phase complete.";
         }
         startProgressPhase();
         return;
@@ -895,7 +935,7 @@ export function createDesktopShell({ root, eventBus, appRegistry, windowManager 
 
     renderNextBootLine();
 
-    const bootAudio = new Audio(BOOT_SOUND_URL);
+    const bootAudio = new Audio(bootSoundUrl);
     bootAudio.volume = 0.86;
     void bootAudio.play().catch(() => {});
 
@@ -921,7 +961,7 @@ export function createDesktopShell({ root, eventBus, appRegistry, windowManager 
     if (state === OS_STATES.SHUTDOWN_INIT) {
       root.innerHTML = `
         <main class="shutdown95-screen" data-testid="shutdown-screen">
-          <p class="shutdown95-screen__text">Windows is shutting down...</p>
+          <p class="shutdown95-screen__text">${shellProfile.shutdownCopy?.shutdownInitText || "Windows is shutting down..."}</p>
         </main>
       `;
       windowManager.setContainer(null);
@@ -931,7 +971,7 @@ export function createDesktopShell({ root, eventBus, appRegistry, windowManager 
     root.innerHTML = `
       <main class="shutdown95-media" data-testid="shutdown-screen">
         <video class="shutdown95-media__video" autoplay playsinline preload="auto">
-          <source src="${SHUTDOWN_VIDEO_URL}" type="video/mp4" />
+          <source src="${shutdownVideoUrl}" type="video/mp4" />
         </video>
       </main>
     `;
@@ -948,14 +988,26 @@ export function createDesktopShell({ root, eventBus, appRegistry, windowManager 
   function renderDesktop() {
     root.className = "shell-root shell-root--desktop";
     clockProfile = readClockProfile();
-    const storedIconPositions = readDesktopIconPositionsFromStorage();
+    const storedIconPositions = readDesktopIconPositionsFromStorage(
+      desktopIconPositionsStorageKey,
+    );
 
     const desktopApps = appRegistry
       .listApps({ placement: "desktop" })
       .sort((leftApp, rightApp) => leftApp.title.localeCompare(rightApp.title));
+    const desktopTransitionIcons = (shellProfile.desktopSystemTransitionIcons || []).map(
+      (iconDefinition, index) => ({
+        id: `desktop-system-transition-${iconDefinition.id || index + 1}`,
+        label: iconDefinition.label || "Switch System",
+        iconKey: iconDefinition.iconKey || "settings",
+        iconUrl: iconDefinition.iconUrl,
+        systemTargetId: iconDefinition.targetDesktopId,
+      }),
+    );
+    const startMenuRailLabel = shellProfile.startMenuRailLabel || "Windows";
 
     root.innerHTML = `
-      <main class="desktop-shell" role="application" aria-label="Windows 95 style portfolio shell" data-testid="desktop-shell">
+      <main class="desktop-shell desktop-shell--${shellProfile.id}" role="application" aria-label="${shellProfile.shellAriaLabel}" data-testid="desktop-shell">
         <section class="desktop-surface" data-desktop-surface>
           <div class="desktop-icons" data-desktop-icons></div>
           <div class="window-layer" data-window-layer></div>
@@ -963,7 +1015,7 @@ export function createDesktopShell({ root, eventBus, appRegistry, windowManager 
         <footer class="taskbar" data-testid="taskbar">
           <button type="button" class="taskbar__start" data-action="toggle-start" data-testid="start-button">
             <span class="taskbar__start-icon" data-start-logo></span>
-            <span class="taskbar__start-text">Start</span>
+            <span class="taskbar__start-text">${shellProfile.startButtonLabel || "Start"}</span>
           </button>
           <div class="taskbar__windows" data-task-windows aria-label="Open windows"></div>
           <div class="taskbar__right">
@@ -996,20 +1048,32 @@ export function createDesktopShell({ root, eventBus, appRegistry, windowManager 
 
     const desktopIconSurface = createIconSurface({
       container: iconContainer,
-      items: desktopApps.map((app) => ({
-        id: `desktop-${app.id}`,
-        appId: app.id,
-        label: app.title,
-        iconKey: app.iconKey,
-        iconUrl: app.iconUrl,
-      })),
+      items: [
+        ...desktopApps.map((app) => ({
+          id: `desktop-${app.id}`,
+          appId: app.id,
+          label: app.title,
+          iconKey: app.iconKey,
+          iconUrl: app.iconUrl,
+        })),
+        ...desktopTransitionIcons,
+      ],
       ariaLabel: "Desktop icons",
       draggable: true,
       initialPositions: storedIconPositions,
       onPositionsChanged(nextPositions) {
-        persistDesktopIconPositions(nextPositions);
+        persistDesktopIconPositions(desktopIconPositionsStorageKey, nextPositions);
       },
       onActivate: (item) => {
+        if (item.systemTargetId) {
+          eventBus.emit("shell:system-switch-requested", {
+            targetSystemId: item.systemTargetId,
+            sourceDesktopProfileId: shellProfile.id,
+            autoBoot: true,
+          });
+          return;
+        }
+
         if (item.appId) {
           eventBus.emit("shell:app-launch-requested", { appId: item.appId });
         }
@@ -1059,6 +1123,15 @@ export function createDesktopShell({ root, eventBus, appRegistry, windowManager 
             ],
             onSelect(entry) {
               if (entry.action === "open") {
+                if (details.item.systemTargetId) {
+                  eventBus.emit("shell:system-switch-requested", {
+                    targetSystemId: details.item.systemTargetId,
+                    sourceDesktopProfileId: shellProfile.id,
+                    autoBoot: true,
+                  });
+                  return;
+                }
+
                 eventBus.emit("shell:app-launch-requested", {
                   appId: details.item.appId,
                 });
@@ -1123,6 +1196,7 @@ export function createDesktopShell({ root, eventBus, appRegistry, windowManager 
     const startMenu = createStartMenu({
       root: startMenuNode,
       entries: createStartMenuEntries(appRegistry),
+      railLabel: startMenuRailLabel,
       onVisibilityChange() {
         syncStartButtonState();
       },

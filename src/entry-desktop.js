@@ -9,7 +9,41 @@ import { OS_STATES } from "./core/os-kernel/states.js";
 import { createWindowManager } from "./core/window-manager/index.js";
 import { createDesktopShell } from "./desktop-shell/index.js";
 
-export async function mountDesktopRuntime(root) {
+function resolveDesktopProfileId(systemId, desktopProfile) {
+  if (typeof desktopProfile === "string" && desktopProfile.trim()) {
+    return desktopProfile.trim().toLowerCase();
+  }
+
+  const normalizedSystemId = String(systemId || "")
+    .trim()
+    .toLowerCase();
+
+  if (normalizedSystemId === "desktop-winxp-sp2") {
+    return "winxp-sp2";
+  }
+
+  if (normalizedSystemId === "desktop-win95") {
+    return "win95";
+  }
+
+  if (normalizedSystemId.startsWith("desktop-")) {
+    return normalizedSystemId.slice("desktop-".length) || "win95";
+  }
+
+  return "win95";
+}
+
+export async function mountDesktopRuntime(
+  root,
+  {
+    desktopProfile,
+    systemId,
+    onRequestSystemSwitch,
+    requestSystemSwitch,
+    switchContext,
+  } = {},
+) {
+  const resolvedDesktopProfile = resolveDesktopProfileId(systemId, desktopProfile);
   const eventBus = createEventBus();
   const mediaEngine = createMediaEngine({ eventBus });
   const fileLayer = createFileLayer();
@@ -30,6 +64,7 @@ export async function mountDesktopRuntime(root) {
     eventBus,
     appRegistry,
     windowManager,
+    desktopProfile: resolvedDesktopProfile,
   });
 
   const cleanupFns = [];
@@ -55,6 +90,33 @@ export async function mountDesktopRuntime(root) {
   );
 
   cleanupFns.push(
+    eventBus.on(
+      "shell:system-switch-requested",
+      ({ targetSystemId, sourceDesktopProfileId, autoBoot } = {}) => {
+        if (typeof targetSystemId !== "string" || !targetSystemId) {
+          return;
+        }
+
+        if (typeof requestSystemSwitch === "function") {
+          requestSystemSwitch(targetSystemId, {
+            source: "desktop-shell-transition",
+            context: {
+              autoBoot: autoBoot !== false,
+            },
+          });
+          return;
+        }
+
+        onRequestSystemSwitch?.({
+          targetSystemId,
+          sourceDesktopProfileId:
+            sourceDesktopProfileId || resolvedDesktopProfile,
+        });
+      },
+    ),
+  );
+
+  cleanupFns.push(
     eventBus.on("os:state-changed", ({ nextState }) => {
       if (nextState === OS_STATES.POWER_OFF) {
         windowManager.closeAll();
@@ -65,6 +127,10 @@ export async function mountDesktopRuntime(root) {
   );
 
   shell.render(kernel.getState());
+
+  if (switchContext?.autoBoot === true) {
+    void kernel.boot();
+  }
 
   return () => {
     cleanupFns.forEach((cleanupFn) => cleanupFn());

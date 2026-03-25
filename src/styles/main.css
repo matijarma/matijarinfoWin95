@@ -1764,6 +1764,273 @@ select {
   text-overflow: ellipsis;
 }
 
+.desktop-shell.desktop-shell--winxp-sp2 {
+  --desktop-bg: #2f6db0;
+  --window-face: #ece9d8;
+  --window-light: #ffffff;
+  --window-mid: #8aa6c5;
+  --window-dark: #2d5f92;
+  --titlebar-active-start: #0a246a;
+  --titlebar-active-end: #4d8de3;
+  --titlebar-inactive: #7f9fca;
+  --menu-highlight: #316ac5;
+  --xp-window-border-light: #7aa4d5;
+  --xp-window-border-dark: #1c467a;
+  --xp-window-shadow: rgba(8, 33, 74, 0.42);
+  --xp-taskbar-top: #3b8cff;
+  --xp-taskbar-bottom: #1f57c8;
+  --xp-taskbar-border: #1c4ca7;
+  --xp-taskbar-highlight: #85bcff;
+  --xp-start-top: #65bd52;
+  --xp-start-bottom: #2e7f22;
+  --xp-start-border: #1c5f16;
+  --xp-start-press-top: #3f8f33;
+  --xp-start-press-bottom: #25691b;
+  --xp-start-menu-rail-top: #5f8fda;
+  --xp-start-menu-rail-bottom: #123f83;
+  --xp-start-menu-rail-accent: #f59f48;
+  --xp-icon-label-bg: rgba(13, 52, 118, 0.56);
+  --xp-icon-label-shadow: rgba(0, 0, 0, 0.86);
+  background-color: var(--desktop-bg);
+  background-image:
+    radial-gradient(150% 78% at 20% 123%, #7ac448 0 34%, transparent 35%),
+    radial-gradient(150% 74% at 94% 126%, #5ca836 0 36%, transparent 37%),
+    radial-gradient(130% 66% at 52% 118%, #8fd255 0 27%, transparent 28%),
+    linear-gradient(180deg, #8bd5ff 0%, #78c3f5 42%, #5aa8e0 62%, #4f92cc 100%);
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+}
+
+.desktop-shell.desktop-shell--winxp-sp2 .os-window {
+  border-width: 1px;
+  border-color: var(--xp-window-border-light) var(--xp-window-border-dark)
+    var(--xp-window-border-dark) var(--xp-window-border-light);
+  border-radius: 6px 6px 4px 4px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.58), 0 4px 12px -2px var(--xp-window-shadow);
+  overflow: hidden;
+}
+
+.desktop-shell.desktop-shell--winxp-sp2 .os-window__titlebar {
+  min-height: 24px;
+  padding: 3px 5px;
+  background: linear-gradient(180deg, #93b4de 0%, #6e8eb9 100%);
+  color: #eef4ff;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.45);
+}
+
+.desktop-shell.desktop-shell--winxp-sp2 .os-window.is-focused .os-window__titlebar {
+  background: linear-gradient(180deg, var(--titlebar-active-start), var(--titlebar-active-end));
+  color: #ffffff;
+}
+
+.desktop-shell.desktop-shell--winxp-sp2 .os-window__controls {
+  gap: 3px;
+}
+
+.desktop-shell.desktop-shell--winxp-sp2 .os-window__control {
+  width: 21px;
+  height: 18px;
+  border-width: 1px;
+  border-color: #265188;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #f7fbff 0%, #cee1f9 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.desktop-shell.desktop-shell--winxp-sp2 .os-window__control:active {
+  border-color: #1a3e6d;
+  background: linear-gradient(180deg, #b7d0f0 0%, #dce9fa 100%);
+}
+
+.desktop-shell.desktop-shell--winxp-sp2 .os-window__control--close {
+  border-color: #8e3326;
+  background: linear-gradient(180deg, #f88b7b 0%, #df4f3a 100%);
+}
+
+.desktop-shell.desktop-shell--winxp-sp2
+  .os-window__control--close
+  .os-window__control-icon--close::before,
+.desktop-shell.desktop-shell--winxp-sp2
+  .os-window__control--close
+  .os-window__control-icon--close::after {
+  background: #ffffff;
+}
+
+.desktop-shell.desktop-shell--winxp-sp2 .os-window__control-icon--minimize::before {
+  background: #14427c;
+}
+
+.desktop-shell.desktop-shell--winxp-sp2 .os-window__control-icon--maximize::before {
+  border-color: #14427c;
+}
+
+.desktop-shell.desktop-shell--winxp-sp2 .os-window__control--maximize.is-maximized .os-window__control-icon--maximize::after {
+  border-color: #14427c;
+  background: #dce9fa;
+}
+
+.desktop-shell.desktop-shell--winxp-sp2 .os-window__control-icon--info::before {
+  color: #14427c;
+}
+
+.desktop-shell.desktop-shell--winxp-sp2 .taskbar {
+  height: 32px;
+  gap: 5px;
+  padding: 3px 4px;
+  border-top: 1px solid var(--xp-taskbar-highlight);
+  border-bottom: 1px solid var(--xp-taskbar-border);
+  background: linear-gradient(180deg, var(--xp-taskbar-top) 0%, #2f74ea 48%, var(--xp-taskbar-bottom) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.38);
+}
+
+.desktop-shell.desktop-shell--winxp-sp2 .taskbar__start {
+  min-width: 98px;
+  min-height: 25px;
+  padding: 0 12px 0 10px;
+  border-width: 1px;
+  border-color: var(--xp-start-border);
+  border-radius: 14px;
+  background: linear-gradient(180deg, var(--xp-start-top) 0%, #3f982d 52%, var(--xp-start-bottom) 100%);
+  color: #ffffff;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.55);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), inset -1px -1px 0 rgba(0, 0, 0, 0.22);
+}
+
+.desktop-shell.desktop-shell--winxp-sp2 .taskbar__start.is-open,
+.desktop-shell.desktop-shell--winxp-sp2 .taskbar__start:active {
+  border-color: #194f11;
+  background: linear-gradient(180deg, var(--xp-start-press-top), var(--xp-start-press-bottom));
+  box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.28);
+}
+
+.desktop-shell.desktop-shell--winxp-sp2 .taskbar__start-icon .win-icon__glyph {
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.35));
+}
+
+.desktop-shell.desktop-shell--winxp-sp2 .taskbar__window {
+  border-width: 1px;
+  border-color: var(--xp-taskbar-border);
+  border-radius: 4px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.36) 0%, rgba(126, 176, 255, 0.26) 14%, rgba(39, 90, 197, 0.8) 100%);
+  color: #eff5ff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+.desktop-shell.desktop-shell--winxp-sp2 .taskbar__window.is-active {
+  border-color: #113b88;
+  background: linear-gradient(180deg, #9fd2ff 0%, #5d98f1 55%, #2f67be 100%);
+  color: #ffffff;
+}
+
+.desktop-shell.desktop-shell--winxp-sp2 .taskbar__window.is-minimized {
+  opacity: 0.78;
+}
+
+.desktop-shell.desktop-shell--winxp-sp2 .taskbar__window-label {
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.42);
+}
+
+.desktop-shell.desktop-shell--winxp-sp2 .systray,
+.desktop-shell.desktop-shell--winxp-sp2 .taskbar__clock {
+  border-width: 1px;
+  border-color: var(--xp-taskbar-border);
+  background: linear-gradient(180deg, rgba(151, 198, 255, 0.92) 0%, rgba(109, 164, 241, 0.9) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.desktop-shell.desktop-shell--winxp-sp2 .systray__icon:hover,
+.desktop-shell.desktop-shell--winxp-sp2 .systray__icon:focus-visible {
+  border-color: #2f63b3;
+  background: rgba(255, 255, 255, 0.24);
+}
+
+.desktop-shell.desktop-shell--winxp-sp2 .taskbar__clock:focus-visible {
+  outline: 1px dotted #ffffff;
+}
+
+.desktop-shell.desktop-shell--winxp-sp2 .start-menu {
+  left: 4px;
+  bottom: 32px;
+}
+
+.desktop-shell.desktop-shell--winxp-sp2 .start-menu__shell {
+  border-width: 1px;
+  border-color: #1e4285;
+  border-radius: 6px 6px 0 0;
+  box-shadow: 0 4px 12px rgba(10, 32, 70, 0.5);
+  background: #f7f8fd;
+  overflow: hidden;
+  grid-template-columns: 30px 1fr;
+}
+
+.desktop-shell.desktop-shell--winxp-sp2 .start-menu__rail {
+  background: linear-gradient(
+    180deg,
+    var(--xp-start-menu-rail-top) 0%,
+    #2d63b6 42%,
+    var(--xp-start-menu-rail-bottom) 100%
+  );
+}
+
+.desktop-shell.desktop-shell--winxp-sp2 .start-menu__rail::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 32%;
+  background: linear-gradient(180deg, rgba(245, 159, 72, 0) 0%, var(--xp-start-menu-rail-accent) 100%);
+}
+
+.desktop-shell.desktop-shell--winxp-sp2 .start-menu__rail-text {
+  color: #f3f8ff;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.45);
+  font-size: 17px;
+  letter-spacing: 0.35px;
+}
+
+.desktop-shell.desktop-shell--winxp-sp2 .start-menu__content {
+  background: linear-gradient(180deg, #f9fbff 0%, #edf2ff 100%);
+  padding: 3px;
+}
+
+.desktop-shell.desktop-shell--winxp-sp2 .win95-menu__button {
+  border-radius: 2px;
+  color: #0c254d;
+}
+
+.desktop-shell.desktop-shell--winxp-sp2 .win95-menu__button:hover,
+.desktop-shell.desktop-shell--winxp-sp2 .win95-menu__button:focus-visible,
+.desktop-shell.desktop-shell--winxp-sp2 .win95-menu__item.is-open > .win95-menu__button {
+  background: linear-gradient(180deg, #4f89e1 0%, #2f67be 100%);
+  color: #ffffff;
+}
+
+.desktop-shell.desktop-shell--winxp-sp2 .desktop-icons .win-icon {
+  color: #ffffff;
+}
+
+.desktop-shell.desktop-shell--winxp-sp2 .desktop-icons .win-icon__label {
+  border-radius: 3px;
+  padding: 1px 4px 2px;
+  background: var(--xp-icon-label-bg);
+  text-shadow: 0 1px 2px var(--xp-icon-label-shadow);
+  letter-spacing: 0.1px;
+}
+
+.desktop-shell.desktop-shell--winxp-sp2 .desktop-icons .win-icon.is-selected {
+  background: rgba(49, 106, 197, 0.45);
+  border-color: #c1d3f3;
+}
+
+.desktop-shell.desktop-shell--winxp-sp2 .desktop-icons .win-icon.is-selected .win-icon__label {
+  background: rgba(24, 74, 156, 0.76);
+}
+
+.desktop-shell.desktop-shell--winxp-sp2 .desktop-icons .win-icon:focus-visible {
+  outline: 1px dotted rgba(255, 255, 255, 0.95);
+}
+
 .mobile-shell {
   width: 100%;
   height: 100%;

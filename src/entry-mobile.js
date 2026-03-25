@@ -1,40 +1,22 @@
 import { createSymbianShell as createUIQP1iShell } from "./mobile-symbian/index.js";
 import { createSymbianShell as createV1995S60Shell } from "./mobile-variants/v1995-s60/index.js";
+import {
+  normalizeMobileVariant,
+  readLegacyMobileVariantFromSearch,
+} from "./core/simulated-systems/index.js";
 
 const MOBILE_STYLESHEET_ID = "mobile-runtime-stylesheet";
 
 function readMobileVariant() {
-  const params = new URLSearchParams(window.location.search);
-  const explicitVariant =
-    params.get("mobileVariant") ||
-    params.get("mobile_variant") ||
-    params.get("symbian");
+  return readLegacyMobileVariantFromSearch().variant;
+}
 
-  if (typeof explicitVariant !== "string" || !explicitVariant.trim()) {
-    return "uiq-p1i";
+function resolveMobileVariant(variant) {
+  if (typeof variant === "string" && variant.trim()) {
+    return normalizeMobileVariant(variant);
   }
 
-  const normalized = explicitVariant.trim().toLowerCase();
-
-  if (
-    normalized === "v1995" ||
-    normalized === "s60" ||
-    normalized === "legacy"
-  ) {
-    return "v1995-s60";
-  }
-
-  if (
-    normalized === "uiq" ||
-    normalized === "uiq3" ||
-    normalized === "uiq3.0" ||
-    normalized === "p1i" ||
-    normalized === "uiq-p1i"
-  ) {
-    return "uiq-p1i";
-  }
-
-  return "uiq-p1i";
+  return readMobileVariant();
 }
 
 function ensureMobileStylesheet(mobileVariant) {
@@ -62,8 +44,8 @@ function ensureMobileStylesheet(mobileVariant) {
   }
 }
 
-export function mountMobileRuntime(root) {
-  const mobileVariant = readMobileVariant();
+export function mountMobileRuntime(root, { variant } = {}) {
+  const mobileVariant = resolveMobileVariant(variant);
   ensureMobileStylesheet(mobileVariant);
   const shellFactory =
     mobileVariant === "v1995-s60" ? createV1995S60Shell : createUIQP1iShell;

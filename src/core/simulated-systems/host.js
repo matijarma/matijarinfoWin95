@@ -2,20 +2,16 @@ function isPromiseLike(value) {
   return Boolean(value) && typeof value.then === "function";
 }
 
-function getWindowHistory() {
-  if (typeof window === "undefined" || !window.history) {
+function getWindowLocalStorage() {
+  if (typeof window === "undefined") {
     return null;
   }
 
-  return window.history;
-}
-
-function getWindowLocation() {
-  if (typeof window === "undefined" || !window.location) {
+  try {
+    return window.localStorage || null;
+  } catch {
     return null;
   }
-
-  return window.location;
 }
 
 function normalizeCleanup(mountResult) {
@@ -39,8 +35,8 @@ export function createSimulatedSystemsHost({
   registry,
   mountSystem,
   onSystemChanged,
-  historyRef = getWindowHistory(),
-  locationRef = getWindowLocation(),
+  storageRef = getWindowLocalStorage(),
+  storageKey = "simulated-system-id",
 } = {}) {
   if (!root) {
     throw new Error("createSimulatedSystemsHost requires a root node.");
@@ -78,21 +74,35 @@ export function createSimulatedSystemsHost({
     root.dataset.systemFamily = system.family;
   }
 
-  function syncUrlSystemQueryParam(systemId) {
-    if (!historyRef || !locationRef || typeof URL === "undefined") {
+  function readPersistedSystemId() {
+    if (!storageRef || typeof storageRef.getItem !== "function" || !storageKey) {
+      return "";
+    }
+
+    try {
+      return storageRef.getItem(storageKey) || "";
+    } catch (error) {
+      console.error("Failed to read persisted simulated system selection.", error);
+      return "";
+    }
+  }
+
+  function persistSystemId(systemId) {
+    if (!storageRef || typeof storageRef.setItem !== "function" || !storageKey || !systemId) {
       return;
     }
 
     try {
-      const nextUrl = new URL(locationRef.href);
-      if (nextUrl.searchParams.get("system") === systemId) {
+      if (
+        typeof storageRef.getItem === "function" &&
+        storageRef.getItem(storageKey) === systemId
+      ) {
         return;
       }
 
-      nextUrl.searchParams.set("system", systemId);
-      historyRef.replaceState(historyRef.state, "", nextUrl);
+      storageRef.setItem(storageKey, systemId);
     } catch (error) {
-      console.error("Failed to sync system query param.", error);
+      console.error("Failed to persist simulated system selection.", error);
     }
   }
 
@@ -127,8 +137,8 @@ export function createSimulatedSystemsHost({
     }
 
     if (!options.forceRemount && activeSystem?.id === nextSystem.id) {
-      if (options.syncUrl !== false) {
-        syncUrlSystemQueryParam(nextSystem.id);
+      if (options.persist !== false) {
+        persistSystemId(nextSystem.id);
       }
       return nextSystem;
     }
@@ -152,8 +162,8 @@ export function createSimulatedSystemsHost({
     activeCleanup = normalizeCleanup(mountResult);
     setRootDataset(nextSystem);
 
-    if (options.syncUrl !== false) {
-      syncUrlSystemQueryParam(nextSystem.id);
+    if (options.persist !== false) {
+      persistSystemId(nextSystem.id);
     }
 
     onSystemChanged?.({
@@ -175,22 +185,25 @@ export function createSimulatedSystemsHost({
   }
 
   function mountInitial({
-    syncUrl = true,
     source,
     search,
+    persistedSystemId,
     isMobileDevice,
     defaultDesktopSystemId,
     defaultMobileSystemId,
   } = {}) {
+    const nextPersistedSystemId =
+      persistedSystemId === undefined ? readPersistedSystemId() : persistedSystemId;
+
     const resolution = registry.resolveInitialSystem({
       search,
+      persistedSystemId: nextPersistedSystemId,
       isMobileDevice,
       defaultDesktopSystemId,
       defaultMobileSystemId,
     });
 
     return switchSystem(resolution.system.id, {
-      syncUrl,
       source: source || resolution.source,
     }).then((system) => ({
       ...resolution,

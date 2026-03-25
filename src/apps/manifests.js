@@ -1,7 +1,6 @@
 import { createFolderWindow } from "./folder-window.js";
 import { createTaskManagerContent } from "./task-manager.js";
 import { createWebAppManifests } from "./web-apps.js";
-import { createIconSurface } from "../ui/icon-surface/index.js";
 import {
   CLOCK_LOCALE_OPTIONS,
   TIMEZONE_PRESETS,
@@ -143,29 +142,9 @@ function createRecycleBinContent() {
 }
 
 function createControlPanelContent(launchApp) {
-  const root = document.createElement("section");
-  root.className = "control-panel-app";
-
-  const heading = document.createElement("h2");
-  heading.textContent = "Control Panel";
-
-  const subtitle = document.createElement("p");
-  subtitle.className = "control-panel-app__subtitle";
-  subtitle.textContent = "Double-click an icon to open a settings category.";
-
-  const surfaceMount = document.createElement("div");
-  surfaceMount.className = "control-panel-app__surface";
-
-  const status = document.createElement("p");
-  status.className = "control-panel-app__status";
-  status.textContent = "Ready.";
-
-  root.append(heading, subtitle, surfaceMount, status);
-
-  const iconSurface = createIconSurface({
-    container: surfaceMount,
-    className: "icon-surface--folder",
-    ariaLabel: "Control Panel categories",
+  return createFolderWindow({
+    title: "Control Panel",
+    subtitle: "Double-click an icon to open a settings category.",
     items: [
       { id: "cp-accessibility", label: "Accessibility Options", iconKey: "settings" },
       { id: "cp-add-hardware", label: "Add New Hardware", iconKey: "settings" },
@@ -205,23 +184,22 @@ function createControlPanelContent(launchApp) {
         appId: "date-time-properties",
       },
     ],
-    onActivate: (item) => {
-      if (item.appId) {
-        launchApp(item.appId, item.launchPayload);
-        status.textContent = `Opened ${item.label}.`;
+    onItemActivate(item) {
+      if (!item.appId) {
+        return false;
+      }
+
+      launchApp(item.appId, item.launchPayload);
+      return true;
+    },
+    onItemProperties(item) {
+      if (!item.appId) {
         return;
       }
 
-      status.textContent = `${item.label} settings are a placeholder in this milestone.`;
+      launchApp(item.appId, item.launchPayload);
     },
   });
-
-  return {
-    element: root,
-    dispose() {
-      iconSurface.destroy();
-    },
-  };
 }
 
 function createNetworkStatusContent(launchPayload = {}) {
@@ -724,6 +702,38 @@ function createInternetExplorerContent(launchPayload = {}) {
   };
 }
 
+const SIMULATED_SYSTEM_STORAGE_KEY = "simulated-system-id";
+const SYSTEM_CONFIGURATION_BOOT_TAB_ID = "boot";
+const SYSTEM_CONFIGURATION_BOOT_ENTRIES = Object.freeze([
+  Object.freeze({
+    targetSystemId: "desktop-win95",
+    desktopProfileId: "win95",
+    label: "Windows 95",
+  }),
+  Object.freeze({
+    targetSystemId: "desktop-winxp-sp2",
+    desktopProfileId: "winxp-sp2",
+    label: "Windows XP SP2",
+  }),
+  Object.freeze({
+    targetSystemId: "desktop-ubuntu-server",
+    desktopProfileId: "ubuntu-server",
+    label: "Ubuntu Server",
+  }),
+]);
+const SYSTEM_CONFIGURATION_BOOT_COMMAND_ACTION = Object.freeze({
+  appId: "system-configuration",
+  launchPayload: Object.freeze({
+    focusTab: SYSTEM_CONFIGURATION_BOOT_TAB_ID,
+  }),
+});
+const SYSTEM_CONFIGURATION_BOOT_COMMAND_SUFFIX_ALIASES = new Set([
+  "boot",
+  "/boot",
+  "-boot",
+  "--boot",
+]);
+
 const RUN_COMMANDS = new Map([
   ["iexplore", "internet-explorer"],
   ["internet", "internet-explorer"],
@@ -745,9 +755,1086 @@ const RUN_COMMANDS = new Map([
   ["taskmgr", "task-manager"],
   ["taskman", "task-manager"],
   ["task manager", "task-manager"],
+  ["msconfig", "system-configuration"],
+  ["msconfig /boot", SYSTEM_CONFIGURATION_BOOT_COMMAND_ACTION],
 ]);
 
-function createRunDialogContent(launchApp) {
+function normalizeRunCommand(rawCommand) {
+  return String(rawCommand || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+function resolveMsconfigBootAliasAction(normalizedCommand) {
+  if (
+    typeof normalizedCommand !== "string" ||
+    !normalizedCommand.startsWith("msconfig")
+  ) {
+    return null;
+  }
+
+  const commandSuffix = normalizedCommand.slice("msconfig".length);
+
+  if (!commandSuffix) {
+    return null;
+  }
+
+  const firstSuffixCharacter = commandSuffix[0];
+
+  if (
+    firstSuffixCharacter !== " " &&
+    firstSuffixCharacter !== "/" &&
+    firstSuffixCharacter !== "-"
+  ) {
+    return null;
+  }
+
+  const normalizedSuffix = commandSuffix.trim().replace(/\s+/g, "");
+
+  if (!SYSTEM_CONFIGURATION_BOOT_COMMAND_SUFFIX_ALIASES.has(normalizedSuffix)) {
+    return null;
+  }
+
+  return {
+    normalizedCommand,
+    appId: SYSTEM_CONFIGURATION_BOOT_COMMAND_ACTION.appId,
+    launchPayload: SYSTEM_CONFIGURATION_BOOT_COMMAND_ACTION.launchPayload,
+  };
+}
+
+function resolveRunCommandAction(rawCommand) {
+  const normalizedCommand = normalizeRunCommand(rawCommand);
+
+  if (!normalizedCommand) {
+    return null;
+  }
+
+  const mapping = RUN_COMMANDS.get(normalizedCommand);
+
+  if (!mapping) {
+    return resolveMsconfigBootAliasAction(normalizedCommand);
+  }
+
+  if (typeof mapping === "string") {
+    return {
+      normalizedCommand,
+      appId: mapping,
+      launchPayload: undefined,
+    };
+  }
+
+  if (typeof mapping.appId !== "string" || !mapping.appId) {
+    return null;
+  }
+
+  return {
+    normalizedCommand,
+    appId: mapping.appId,
+    launchPayload: mapping.launchPayload,
+  };
+}
+
+function getRunDialogPrefillFromPayload(launchPayload = {}) {
+  if (!launchPayload || typeof launchPayload !== "object") {
+    return "";
+  }
+
+  const candidateCommand =
+    typeof launchPayload.prefillCommand === "string"
+      ? launchPayload.prefillCommand
+      : typeof launchPayload.command === "string"
+        ? launchPayload.command
+        : "";
+
+  return candidateCommand.trim();
+}
+
+function resolveSystemConfigurationInitialTab(launchPayload = {}) {
+  if (!launchPayload || typeof launchPayload !== "object") {
+    return "general";
+  }
+
+  const normalizedTab = String(launchPayload.focusTab || "")
+    .trim()
+    .toLowerCase();
+
+  if (normalizedTab === "general") {
+    return "general";
+  }
+
+  if (
+    normalizedTab === SYSTEM_CONFIGURATION_BOOT_TAB_ID ||
+    normalizedTab === "bootini"
+  ) {
+    return "boot";
+  }
+
+  if (normalizedTab === "services") {
+    return "services";
+  }
+
+  if (normalizedTab === "startup") {
+    return "startup";
+  }
+
+  if (normalizedTab === "configsys" || normalizedTab === "config.sys") {
+    return "configsys";
+  }
+
+  if (normalizedTab === "autoexec" || normalizedTab === "autoexec.bat") {
+    return "autoexec";
+  }
+
+  if (normalizedTab === "winini" || normalizedTab === "win.ini") {
+    return "winini";
+  }
+
+  if (normalizedTab === "systemini" || normalizedTab === "system.ini") {
+    return "systemini";
+  }
+
+  if (normalizedTab === "tools") {
+    return "tools";
+  }
+
+  return "general";
+}
+
+function resolveDesktopProfileIdFromSystemId(systemId) {
+  if (systemId === "desktop-win95") {
+    return "win95";
+  }
+
+  if (systemId === "desktop-winxp-sp2") {
+    return "winxp-sp2";
+  }
+
+  if (systemId === "desktop-ubuntu-server") {
+    return "ubuntu-server";
+  }
+
+  return "";
+}
+
+function readCurrentSystemIdFromDocument() {
+  if (typeof document === "undefined") {
+    return "";
+  }
+
+  const appRoot = document.getElementById("app");
+  const systemId = appRoot?.dataset?.systemId;
+
+  return typeof systemId === "string" ? systemId : "";
+}
+
+function isKnownBootTargetSystemId(targetSystemId) {
+  return SYSTEM_CONFIGURATION_BOOT_ENTRIES.some((entry) => entry.targetSystemId === targetSystemId);
+}
+
+function readPersistedBootTargetSystemId() {
+  try {
+    if (!("localStorage" in window)) {
+      return "";
+    }
+
+    const rawValue = window.localStorage.getItem(SIMULATED_SYSTEM_STORAGE_KEY);
+    const normalizedValue = String(rawValue || "").trim();
+
+    return isKnownBootTargetSystemId(normalizedValue) ? normalizedValue : "";
+  } catch {
+    return "";
+  }
+}
+
+function writePersistedBootTargetSystemId(targetSystemId) {
+  try {
+    if (!("localStorage" in window)) {
+      return false;
+    }
+
+    window.localStorage.setItem(SIMULATED_SYSTEM_STORAGE_KEY, targetSystemId);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function createSystemConfigurationContent({
+  eventBus,
+  launchPayload = {},
+  windowManager,
+} = {}) {
+  const currentSystemId = readCurrentSystemIdFromDocument();
+  const currentProfileId = resolveDesktopProfileIdFromSystemId(currentSystemId) || "win95";
+  const isWindowsXpProfile = currentProfileId === "winxp-sp2";
+  const isUbuntuServerProfile = currentProfileId === "ubuntu-server";
+  const tabDefinitions = isWindowsXpProfile
+    ? [
+        { id: "general", label: "General" },
+        { id: "systemini", label: "SYSTEM.INI" },
+        { id: "winini", label: "WIN.INI" },
+        { id: "boot", label: "BOOT.INI" },
+        { id: "services", label: "Services" },
+        { id: "startup", label: "Startup" },
+        { id: "tools", label: "Tools" },
+      ]
+    : [
+        { id: "general", label: "General" },
+        { id: "configsys", label: "Config.sys" },
+        { id: "autoexec", label: "Autoexec.bat" },
+        { id: "winini", label: "Win.ini" },
+        { id: "systemini", label: "System.ini" },
+        { id: "startup", label: "Startup" },
+        { id: "boot", label: "Boot Menu" },
+      ];
+  const availableTabIds = new Set(tabDefinitions.map((tab) => tab.id));
+  const root = document.createElement("section");
+  root.className = `msconfig msconfig--${currentProfileId}`;
+  root.dataset.desktopProfileId = currentProfileId;
+
+  function buildScriptPanelMarkup(lines = []) {
+    return `
+      <fieldset class="msconfig__group msconfig__group--script">
+        <legend>Configuration lines</legend>
+        <ul class="msconfig__script-list">
+          ${lines
+            .map(
+              (line, lineIndex) => `
+            <li class="msconfig__script-line">
+              <label class="msconfig__check">
+                <input type="checkbox" ${lineIndex === 0 ? "checked" : ""} disabled />
+                <span>${line}</span>
+              </label>
+            </li>
+          `,
+            )
+            .join("")}
+        </ul>
+      </fieldset>
+      <p class="msconfig__hint">Direct editing is intentionally disabled in this simulation.</p>
+    `;
+  }
+
+  function buildTabPanelMarkup(tabId) {
+    if (tabId === "general") {
+      return `
+        <fieldset class="msconfig__group">
+          <legend>Startup Selection</legend>
+          <label class="msconfig__option">
+            <input type="radio" checked disabled />
+            <span>Normal startup - load all device drivers and services.</span>
+          </label>
+          <label class="msconfig__option">
+            <input type="radio" disabled />
+            <span>Diagnostic startup - load basic devices and services only.</span>
+          </label>
+          <label class="msconfig__option">
+            <input type="radio" disabled />
+            <span>Selective startup - choose startup files and services.</span>
+          </label>
+        </fieldset>
+        <p class="msconfig__hint">
+          ${
+            isWindowsXpProfile
+              ? "Use BOOT.INI tab to choose default operating system."
+              : "Use Boot Menu tab to choose default operating system."
+          }
+        </p>
+      `;
+    }
+
+    if (tabId === "boot") {
+      return `
+        <div class="msconfig__boot-shell">
+          <p class="msconfig__hint">
+            ${
+              isWindowsXpProfile
+                ? "Select default operating system and startup behavior from BOOT.INI."
+                : "Select default operating system for this simulated multi-boot setup."
+            }
+          </p>
+          <fieldset class="msconfig__boot-group">
+            <legend>${isWindowsXpProfile ? "Operating Systems" : "Boot Menu Entries"}</legend>
+            <div class="msconfig__boot-list" data-msconfig-boot-list role="radiogroup" aria-label="Installed operating systems"></div>
+          </fieldset>
+          <div class="msconfig__boot-options">
+            <label class="msconfig__field msconfig__field--inline">
+              <span>Timeout</span>
+              <input type="number" class="msconfig__input" min="0" max="999" value="30" disabled />
+            </label>
+            <label class="msconfig__check">
+              <input type="checkbox" disabled />
+              <span>${isWindowsXpProfile ? "/NOGUIBOOT (placeholder)" : "Show startup menu at boot"}</span>
+            </label>
+          </div>
+          <p class="msconfig__boot-selection" data-msconfig-boot-selection aria-live="polite"></p>
+        </div>
+      `;
+    }
+
+    if (tabId === "services") {
+      return `
+        <fieldset class="msconfig__group">
+          <legend>Services</legend>
+          <ul class="msconfig__todo-list">
+            <li>Remote Procedure Call (RPC)</li>
+            <li>Workstation</li>
+            <li>Network Connections</li>
+            <li>Windows Audio</li>
+          </ul>
+        </fieldset>
+        <p class="msconfig__hint">Service toggles are read-only in this build.</p>
+      `;
+    }
+
+    if (tabId === "startup") {
+      return `
+        <fieldset class="msconfig__group">
+          <legend>Startup Items</legend>
+          <ul class="msconfig__todo-list">
+            <li>SystemTray.exe</li>
+            <li>Explorer.exe</li>
+            <li>TaskbarClock.exe</li>
+          </ul>
+        </fieldset>
+        <p class="msconfig__hint">Startup toggles are read-only in this build.</p>
+      `;
+    }
+
+    if (tabId === "tools") {
+      return `
+        <fieldset class="msconfig__group">
+          <legend>Tools</legend>
+          <ul class="msconfig__todo-list">
+            <li>Run (run)</li>
+            <li>Date/Time Properties (timedate)</li>
+            <li>Task Manager (taskmgr)</li>
+          </ul>
+        </fieldset>
+      `;
+    }
+
+    if (tabId === "configsys") {
+      return buildScriptPanelMarkup([
+        "DOS=HIGH,UMB",
+        "DEVICE=C:\\WINDOWS\\HIMEM.SYS",
+        "DEVICE=C:\\WINDOWS\\EMM386.EXE NOEMS",
+        "FILES=40",
+      ]);
+    }
+
+    if (tabId === "autoexec") {
+      return buildScriptPanelMarkup([
+        "@ECHO OFF",
+        "SET PATH=C:\\WINDOWS;C:\\WINDOWS\\COMMAND",
+        "SET TEMP=C:\\WINDOWS\\TEMP",
+        "LH SMARTDRV.EXE",
+      ]);
+    }
+
+    if (tabId === "winini") {
+      return buildScriptPanelMarkup([
+        "[windows]",
+        "load=",
+        "run=",
+        "[intl]",
+      ]);
+    }
+
+    if (tabId === "systemini") {
+      return buildScriptPanelMarkup([
+        "[boot]",
+        "shell=Explorer.exe",
+        "[drivers]",
+        "wave=mmdrv.dll",
+      ]);
+    }
+
+    return `<p class="msconfig__hint">This tab is unavailable in this build.</p>`;
+  }
+
+  const header = document.createElement("header");
+  header.className = "msconfig__header";
+  header.innerHTML = `
+    <h2 class="msconfig__title">System Configuration Utility</h2>
+    <p class="msconfig__subtitle">${
+      isWindowsXpProfile
+        ? "Microsoft Windows XP startup configuration."
+        : isUbuntuServerProfile
+          ? "Ubuntu Server startup configuration."
+          : "Microsoft Windows 95 startup configuration."
+    }</p>
+  `;
+
+  const dialog = document.createElement("div");
+  dialog.className = "msconfig__dialog";
+
+  const tabsNode = document.createElement("div");
+  tabsNode.className = "msconfig__tabs";
+  tabsNode.setAttribute("role", "tablist");
+  tabsNode.setAttribute("aria-label", "System Configuration tabs");
+
+  for (const tab of tabDefinitions) {
+    const tabButton = document.createElement("button");
+    tabButton.type = "button";
+    tabButton.className = "msconfig__tab";
+    tabButton.dataset.msconfigTabButton = tab.id;
+    tabButton.setAttribute("role", "tab");
+    tabButton.setAttribute("aria-selected", "false");
+    tabButton.tabIndex = -1;
+    tabButton.textContent = tab.label;
+    tabsNode.append(tabButton);
+  }
+
+  const contentNode = document.createElement("div");
+  contentNode.className = "msconfig__content";
+
+  for (const tab of tabDefinitions) {
+    const panel = document.createElement("section");
+    panel.className = `msconfig__panel msconfig__panel--${tab.id}`;
+    panel.dataset.msconfigTabPanel = tab.id;
+    panel.hidden = true;
+    panel.innerHTML = buildTabPanelMarkup(tab.id);
+    contentNode.append(panel);
+  }
+
+  dialog.append(tabsNode, contentNode);
+
+  const footer = document.createElement("footer");
+  footer.className = "msconfig__footer";
+  footer.innerHTML = `
+    <p class="msconfig__status" data-msconfig-status>Ready.</p>
+    <div class="msconfig__actions">
+      <button type="button" class="msconfig__button msconfig__button--primary" data-msconfig-action="ok">OK</button>
+      <button type="button" class="msconfig__button" data-msconfig-action="cancel">Cancel</button>
+      <button type="button" class="msconfig__button" data-msconfig-action="apply">Apply</button>
+      <button type="button" class="msconfig__button" data-msconfig-action="apply-restart">Apply and Restart</button>
+    </div>
+  `;
+
+  root.append(header, dialog, footer);
+
+  const tabButtons = Array.from(root.querySelectorAll("[data-msconfig-tab-button]"));
+  const tabPanels = Array.from(root.querySelectorAll("[data-msconfig-tab-panel]"));
+  const bootListNode = root.querySelector("[data-msconfig-boot-list]");
+  const bootSelectionNode = root.querySelector("[data-msconfig-boot-selection]");
+  const okButton = root.querySelector('[data-msconfig-action="ok"]');
+  const cancelButton = root.querySelector('[data-msconfig-action="cancel"]');
+  const applyButton = root.querySelector('[data-msconfig-action="apply"]');
+  const applyRestartButton = root.querySelector('[data-msconfig-action="apply-restart"]');
+  const statusNode = root.querySelector("[data-msconfig-status]");
+  const launchPayloadSourceProfileId =
+    typeof launchPayload.sourceDesktopProfileId === "string"
+      ? launchPayload.sourceDesktopProfileId
+      : "";
+  const persistedBootTargetSystemId = readPersistedBootTargetSystemId();
+  const defaultBootTargetSystemId =
+    persistedBootTargetSystemId ||
+    SYSTEM_CONFIGURATION_BOOT_ENTRIES.find((entry) => entry.desktopProfileId === currentProfileId)
+      ?.targetSystemId ||
+    SYSTEM_CONFIGURATION_BOOT_ENTRIES[0]?.targetSystemId ||
+    "desktop-win95";
+  const bootState = {
+    persistedTargetSystemId: persistedBootTargetSystemId || "",
+  };
+  const selectedBootTarget = {
+    systemId: defaultBootTargetSystemId,
+  };
+  let systemConfigurationWindowId = "";
+
+  function rememberSystemConfigurationWindowId(candidateWindowId) {
+    if (typeof candidateWindowId !== "string" || !candidateWindowId) {
+      return;
+    }
+
+    systemConfigurationWindowId = candidateWindowId;
+  }
+
+  function resolveSystemConfigurationWindowId() {
+    if (!windowManager || typeof windowManager.closeWindow !== "function") {
+      return "";
+    }
+
+    if (systemConfigurationWindowId) {
+      if (typeof windowManager.getWindow !== "function") {
+        return systemConfigurationWindowId;
+      }
+
+      const knownWindow = windowManager.getWindow(systemConfigurationWindowId);
+
+      if (knownWindow?.appId === "system-configuration") {
+        return systemConfigurationWindowId;
+      }
+    }
+
+    if (
+      typeof windowManager.getActiveWindowId === "function" &&
+      typeof windowManager.getWindow === "function"
+    ) {
+      const activeWindowId = windowManager.getActiveWindowId();
+      const activeWindow = activeWindowId ? windowManager.getWindow(activeWindowId) : null;
+
+      if (activeWindow?.appId === "system-configuration") {
+        rememberSystemConfigurationWindowId(activeWindowId);
+        return activeWindowId;
+      }
+    }
+
+    if (typeof windowManager.listWindows === "function") {
+      const systemConfigurationWindow = windowManager
+        .listWindows()
+        .find((windowRecord) => windowRecord.appId === "system-configuration");
+
+      if (systemConfigurationWindow?.id) {
+        rememberSystemConfigurationWindowId(systemConfigurationWindow.id);
+        return systemConfigurationWindow.id;
+      }
+    }
+
+    return "";
+  }
+
+  function closeSystemConfigurationWindow() {
+    const windowId = resolveSystemConfigurationWindowId();
+
+    if (!windowId || !windowManager || typeof windowManager.closeWindow !== "function") {
+      return false;
+    }
+
+    return windowManager.closeWindow(windowId);
+  }
+
+  function setStatus(textContent) {
+    if (statusNode) {
+      statusNode.textContent = textContent;
+    }
+  }
+
+  function setActiveTab(nextTab) {
+    const normalizedNextTab =
+      typeof nextTab === "string" && nextTab.trim() ? nextTab.trim().toLowerCase() : "general";
+    const resolvedTabId = availableTabIds.has(normalizedNextTab)
+      ? normalizedNextTab
+      : availableTabIds.has("general")
+        ? "general"
+        : tabDefinitions[0]?.id || "";
+
+    for (const button of tabButtons) {
+      const isActive = button.dataset.msconfigTabButton === resolvedTabId;
+      button.classList.toggle("is-active", isActive);
+      button.setAttribute("aria-selected", isActive ? "true" : "false");
+      button.tabIndex = isActive ? 0 : -1;
+    }
+
+    for (const panel of tabPanels) {
+      panel.hidden = panel.dataset.msconfigTabPanel !== resolvedTabId;
+    }
+  }
+
+  function getBootEntryBySystemId(targetSystemId) {
+    return (
+      SYSTEM_CONFIGURATION_BOOT_ENTRIES.find((entry) => entry.targetSystemId === targetSystemId) || null
+    );
+  }
+
+  function updateBootSelectionSummary() {
+    if (!(bootSelectionNode instanceof HTMLElement)) {
+      return;
+    }
+
+    const selectedEntry = getBootEntryBySystemId(selectedBootTarget.systemId);
+
+    if (!selectedEntry) {
+      bootSelectionNode.textContent = "Selected operating system: none.";
+      return;
+    }
+
+    const badges = [];
+
+    if (selectedEntry.targetSystemId === currentSystemId) {
+      badges.push("current OS");
+    }
+
+    if (bootState.persistedTargetSystemId === selectedEntry.targetSystemId) {
+      badges.push("saved default");
+    }
+
+    const badgeText = badges.length > 0 ? ` (${badges.join(", ")})` : "";
+    bootSelectionNode.textContent = `Selected operating system: ${selectedEntry.label}${badgeText}.`;
+  }
+
+  function syncBootSelectionUI() {
+    if (!bootListNode) {
+      updateBootSelectionSummary();
+      return;
+    }
+
+    const entryNodes = Array.from(bootListNode.querySelectorAll("[data-msconfig-boot-entry]"));
+
+    for (const entryNode of entryNodes) {
+      if (!(entryNode instanceof HTMLElement)) {
+        continue;
+      }
+
+      const targetSystemId = String(entryNode.dataset.msconfigBootEntry || "");
+      const entry = getBootEntryBySystemId(targetSystemId);
+
+      if (!entry) {
+        continue;
+      }
+
+      const isSelected = targetSystemId === selectedBootTarget.systemId;
+      entryNode.setAttribute("aria-selected", isSelected ? "true" : "false");
+
+      const radioInput = entryNode.querySelector('input[name="msconfig-boot-target"]');
+
+      if (radioInput instanceof HTMLInputElement) {
+        radioInput.checked = isSelected;
+      }
+
+      const stateNode = entryNode.querySelector("[data-msconfig-boot-state]");
+
+      if (stateNode instanceof HTMLElement) {
+        const stateTokens = [];
+
+        if (entry.targetSystemId === currentSystemId) {
+          stateTokens.push("Current OS");
+        }
+
+        if (bootState.persistedTargetSystemId === entry.targetSystemId) {
+          stateTokens.push("Saved default");
+        }
+
+        if (isSelected) {
+          stateTokens.push("Selected");
+        }
+
+        stateNode.textContent = stateTokens.length > 0 ? stateTokens.join(" | ") : "Available";
+      }
+
+      const selectButton = entryNode.querySelector("[data-msconfig-boot-select]");
+
+      if (selectButton instanceof HTMLButtonElement) {
+        selectButton.disabled = isSelected;
+        selectButton.textContent = isSelected ? "Selected" : "Set as default";
+      }
+    }
+
+    updateBootSelectionSummary();
+  }
+
+  function persistBootTargetSystemId(targetSystemId, { announce = false } = {}) {
+    if (!isKnownBootTargetSystemId(targetSystemId)) {
+      return false;
+    }
+
+    const didPersist = writePersistedBootTargetSystemId(targetSystemId);
+
+    if (!didPersist) {
+      setStatus("Unable to save default boot target in this browser session.");
+      return false;
+    }
+
+    bootState.persistedTargetSystemId = targetSystemId;
+    syncBootSelectionUI();
+
+    if (announce) {
+      const selectedEntry = getBootEntryBySystemId(targetSystemId);
+      setStatus(`Default boot target saved: ${selectedEntry?.label || targetSystemId}.`);
+    }
+
+    return true;
+  }
+
+  function setSelectedBootTargetSystemId(
+    targetSystemId,
+    { announce = false, persist = false } = {},
+  ) {
+    if (!isKnownBootTargetSystemId(targetSystemId)) {
+      return false;
+    }
+
+    selectedBootTarget.systemId = targetSystemId;
+    syncBootSelectionUI();
+
+    if (persist) {
+      return persistBootTargetSystemId(targetSystemId, { announce });
+    }
+
+    if (announce) {
+      const selectedEntry = getBootEntryBySystemId(targetSystemId);
+      setStatus(`Selected boot entry: ${selectedEntry?.label || targetSystemId}.`);
+    }
+
+    return true;
+  }
+
+  function renderBootEntries() {
+    if (!bootListNode) {
+      updateBootSelectionSummary();
+      return;
+    }
+
+    bootListNode.innerHTML = "";
+    const entryList = document.createElement("ol");
+    entryList.className = "msconfig__boot-entry-list";
+
+    for (const entry of SYSTEM_CONFIGURATION_BOOT_ENTRIES) {
+      const listItem = document.createElement("li");
+      listItem.className = "msconfig__boot-entry";
+      listItem.dataset.msconfigBootEntry = entry.targetSystemId;
+      listItem.tabIndex = 0;
+
+      const inputId = `msconfig-boot-target-${entry.desktopProfileId}`;
+      const selectorRow = document.createElement("div");
+      selectorRow.className = "msconfig__boot-selector";
+      const radioInput = document.createElement("input");
+      radioInput.id = inputId;
+      radioInput.type = "radio";
+      radioInput.name = "msconfig-boot-target";
+      radioInput.value = entry.targetSystemId;
+
+      const label = document.createElement("label");
+      label.className = "msconfig__boot-label";
+      label.setAttribute("for", inputId);
+      label.textContent = entry.label;
+
+      selectorRow.append(radioInput, label);
+
+      const systemIdNode = document.createElement("div");
+      systemIdNode.className = "msconfig__boot-system-id";
+      systemIdNode.textContent = isWindowsXpProfile
+        ? `${entry.label} /fastdetect`
+        : entry.label;
+
+      const stateNode = document.createElement("div");
+      stateNode.className = "msconfig__boot-state";
+      stateNode.dataset.msconfigBootState = "true";
+
+      const selectButton = document.createElement("button");
+      selectButton.type = "button";
+      selectButton.className = "msconfig__button msconfig__boot-select";
+      selectButton.dataset.msconfigBootSelect = entry.targetSystemId;
+      selectButton.textContent = "Set as default";
+
+      listItem.append(selectorRow, systemIdNode, stateNode, selectButton);
+      entryList.append(listItem);
+    }
+
+    bootListNode.append(entryList);
+    syncBootSelectionUI();
+  }
+
+  function getSelectedBootTargetSystemId() {
+    return selectedBootTarget.systemId;
+  }
+
+  function applyBootSelection({ restart = false } = {}) {
+    const targetSystemId = getSelectedBootTargetSystemId();
+
+    if (!isKnownBootTargetSystemId(targetSystemId)) {
+      setStatus("Select a valid boot entry.");
+      return false;
+    }
+
+    const selectedEntry = getBootEntryBySystemId(targetSystemId);
+    const didPersist = persistBootTargetSystemId(targetSystemId);
+
+    if (!didPersist) {
+      return false;
+    }
+
+    if (!restart) {
+      setStatus(`Default boot target saved: ${selectedEntry?.label || targetSystemId}.`);
+      return true;
+    }
+
+    eventBus?.emit("shell:system-switch-requested", {
+      targetSystemId,
+      sourceDesktopProfileId: launchPayloadSourceProfileId || currentProfileId || "win95",
+      autoBoot: true,
+      reboot: true,
+      rebootRequested: true,
+      source: "msconfig-boot-tab",
+    });
+    setStatus(`Restart requested into ${selectedEntry?.label || targetSystemId}.`);
+    return true;
+  }
+
+  function moveTabFocus(currentButton, direction) {
+    if (!(currentButton instanceof HTMLButtonElement)) {
+      return;
+    }
+
+    const currentIndex = tabButtons.indexOf(currentButton);
+
+    if (currentIndex === -1 || tabButtons.length === 0) {
+      return;
+    }
+
+    const nextIndex = (currentIndex + direction + tabButtons.length) % tabButtons.length;
+    const nextButton = tabButtons[nextIndex];
+    nextButton?.focus();
+    if (nextButton) {
+      setActiveTab(nextButton.dataset.msconfigTabButton);
+    }
+  }
+
+  const tabButtonHandler = (event) => {
+    const button = event.currentTarget;
+
+    if (!(button instanceof HTMLButtonElement)) {
+      return;
+    }
+
+    setActiveTab(button.dataset.msconfigTabButton);
+  };
+
+  const tabButtonKeydownHandler = (event) => {
+    const button = event.currentTarget;
+
+    if (!(button instanceof HTMLButtonElement)) {
+      return;
+    }
+
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      moveTabFocus(button, 1);
+      return;
+    }
+
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      moveTabFocus(button, -1);
+      return;
+    }
+
+    if (event.key === "Home") {
+      event.preventDefault();
+      const firstButton = tabButtons[0];
+      firstButton?.focus();
+      if (firstButton) {
+        setActiveTab(firstButton.dataset.msconfigTabButton);
+      }
+      return;
+    }
+
+    if (event.key === "End") {
+      event.preventDefault();
+      const lastButton = tabButtons[tabButtons.length - 1];
+      lastButton?.focus();
+      if (lastButton) {
+        setActiveTab(lastButton.dataset.msconfigTabButton);
+      }
+    }
+  };
+
+  const bootSelectionHandler = (event) => {
+    const input = event.target;
+
+    if (!(input instanceof HTMLInputElement) || input.name !== "msconfig-boot-target") {
+      return;
+    }
+
+    setSelectedBootTargetSystemId(input.value, { announce: true, persist: true });
+  };
+
+  const bootSelectionButtonHandler = (event) => {
+    if (!bootListNode) {
+      return;
+    }
+
+    const target = event.target;
+
+    if (!(target instanceof Element)) {
+      return;
+    }
+
+    const button = target.closest("[data-msconfig-boot-select]");
+
+    if (!(button instanceof HTMLButtonElement) || !bootListNode.contains(button)) {
+      return;
+    }
+
+    setSelectedBootTargetSystemId(button.dataset.msconfigBootSelect, {
+      announce: true,
+      persist: true,
+    });
+  };
+
+  const bootEntryClickHandler = (event) => {
+    if (!bootListNode) {
+      return;
+    }
+
+    const target = event.target;
+
+    if (!(target instanceof Element)) {
+      return;
+    }
+
+    if (target.closest("[data-msconfig-boot-select]")) {
+      return;
+    }
+
+    if (target.closest('input[name="msconfig-boot-target"]')) {
+      return;
+    }
+
+    const entryNode = target.closest("[data-msconfig-boot-entry]");
+
+    if (!(entryNode instanceof HTMLElement) || !bootListNode.contains(entryNode)) {
+      return;
+    }
+
+    setSelectedBootTargetSystemId(entryNode.dataset.msconfigBootEntry, {
+      announce: true,
+      persist: true,
+    });
+  };
+
+  const bootEntryKeydownHandler = (event) => {
+    if (!bootListNode) {
+      return;
+    }
+
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+
+    const target = event.target;
+
+    if (!(target instanceof Element)) {
+      return;
+    }
+
+    const entryNode = target.closest("[data-msconfig-boot-entry]");
+
+    if (!(entryNode instanceof HTMLElement) || !bootListNode.contains(entryNode)) {
+      return;
+    }
+
+    event.preventDefault();
+    setSelectedBootTargetSystemId(entryNode.dataset.msconfigBootEntry, {
+      announce: true,
+      persist: true,
+    });
+  };
+
+  const okHandler = () => {
+    applyBootSelection();
+    closeSystemConfigurationWindow();
+  };
+
+  const cancelHandler = () => {
+    closeSystemConfigurationWindow();
+  };
+
+  const applyHandler = () => {
+    applyBootSelection();
+  };
+
+  const applyAndRestartHandler = () => {
+    applyBootSelection({ restart: true });
+  };
+
+  const handleLaunchReused = ({ appId, windowId, launchPayload: reusedLaunchPayload } = {}) => {
+    if (appId !== "system-configuration") {
+      return;
+    }
+
+    rememberSystemConfigurationWindowId(windowId);
+    const nextTab = resolveSystemConfigurationInitialTab(reusedLaunchPayload);
+    setActiveTab(nextTab);
+  };
+
+  const appLaunchedHandler = ({ appId, windowId } = {}) => {
+    if (appId !== "system-configuration") {
+      return;
+    }
+
+    rememberSystemConfigurationWindowId(windowId);
+  };
+
+  const removeLaunchReusedListener = eventBus?.on("app:launch-reused", handleLaunchReused) || null;
+  const removeAppLaunchedListener = eventBus?.on("app:launched", appLaunchedHandler) || null;
+
+  for (const button of tabButtons) {
+    button.addEventListener("click", tabButtonHandler);
+    button.addEventListener("keydown", tabButtonKeydownHandler);
+  }
+
+  if (bootListNode) {
+    bootListNode.addEventListener("change", bootSelectionHandler);
+    bootListNode.addEventListener("click", bootSelectionButtonHandler);
+    bootListNode.addEventListener("click", bootEntryClickHandler);
+    bootListNode.addEventListener("keydown", bootEntryKeydownHandler);
+  }
+
+  if (okButton instanceof HTMLButtonElement) {
+    okButton.addEventListener("click", okHandler);
+  }
+
+  if (cancelButton instanceof HTMLButtonElement) {
+    cancelButton.addEventListener("click", cancelHandler);
+  }
+
+  if (applyButton instanceof HTMLButtonElement) {
+    applyButton.addEventListener("click", applyHandler);
+  }
+
+  if (applyRestartButton instanceof HTMLButtonElement) {
+    applyRestartButton.addEventListener("click", applyAndRestartHandler);
+  }
+
+  renderBootEntries();
+  setActiveTab(resolveSystemConfigurationInitialTab(launchPayload));
+  setStatus("Ready.");
+
+  return {
+    element: root,
+    dispose() {
+      for (const button of tabButtons) {
+        button.removeEventListener("click", tabButtonHandler);
+        button.removeEventListener("keydown", tabButtonKeydownHandler);
+      }
+
+      if (bootListNode) {
+        bootListNode.removeEventListener("change", bootSelectionHandler);
+        bootListNode.removeEventListener("click", bootSelectionButtonHandler);
+        bootListNode.removeEventListener("click", bootEntryClickHandler);
+        bootListNode.removeEventListener("keydown", bootEntryKeydownHandler);
+      }
+
+      if (okButton instanceof HTMLButtonElement) {
+        okButton.removeEventListener("click", okHandler);
+      }
+
+      if (cancelButton instanceof HTMLButtonElement) {
+        cancelButton.removeEventListener("click", cancelHandler);
+      }
+
+      if (applyButton instanceof HTMLButtonElement) {
+        applyButton.removeEventListener("click", applyHandler);
+      }
+
+      if (applyRestartButton instanceof HTMLButtonElement) {
+        applyRestartButton.removeEventListener("click", applyAndRestartHandler);
+      }
+
+      if (typeof removeLaunchReusedListener === "function") {
+        removeLaunchReusedListener();
+      }
+
+      if (typeof removeAppLaunchedListener === "function") {
+        removeAppLaunchedListener();
+      }
+    },
+  };
+}
+
+function createRunDialogContent({ launchApp, eventBus, windowManager, launchPayload = {} } = {}) {
   const root = document.createElement("section");
   root.className = "run-dialog";
 
@@ -761,45 +1848,168 @@ function createRunDialogContent(launchApp) {
         <button type="submit" class="run-dialog__button">OK</button>
       </div>
     </form>
-    <p class="run-dialog__hint">Try: iexplore, control, network, timedate, taskmgr, explorer, recycle, portfolio</p>
+    <p class="run-dialog__hint">Try: iexplore, control, network, timedate, taskmgr, explorer, recycle, portfolio, msconfig /boot</p>
     <p class="run-dialog__status">Ready.</p>
   `;
 
   const form = root.querySelector(".run-dialog__form");
   const input = root.querySelector(".run-dialog__input");
   const status = root.querySelector(".run-dialog__status");
+  let runDialogWindowId = "";
+
+  function rememberRunDialogWindowId(candidateWindowId) {
+    if (typeof candidateWindowId !== "string" || !candidateWindowId) {
+      return;
+    }
+
+    runDialogWindowId = candidateWindowId;
+  }
+
+  function resolveRunDialogWindowId() {
+    if (!windowManager || typeof windowManager.closeWindow !== "function") {
+      return "";
+    }
+
+    if (runDialogWindowId) {
+      if (typeof windowManager.getWindow !== "function") {
+        return runDialogWindowId;
+      }
+
+      const knownWindow = windowManager.getWindow(runDialogWindowId);
+
+      if (knownWindow?.appId === "run-dialog") {
+        return runDialogWindowId;
+      }
+    }
+
+    if (
+      typeof windowManager.getActiveWindowId === "function" &&
+      typeof windowManager.getWindow === "function"
+    ) {
+      const activeWindowId = windowManager.getActiveWindowId();
+      const activeWindow = activeWindowId ? windowManager.getWindow(activeWindowId) : null;
+
+      if (activeWindow?.appId === "run-dialog") {
+        rememberRunDialogWindowId(activeWindowId);
+        return activeWindowId;
+      }
+    }
+
+    if (typeof windowManager.listWindows === "function") {
+      const runDialogWindow = windowManager
+        .listWindows()
+        .find((windowRecord) => windowRecord.appId === "run-dialog");
+
+      if (runDialogWindow?.id) {
+        rememberRunDialogWindowId(runDialogWindow.id);
+        return runDialogWindow.id;
+      }
+    }
+
+    return "";
+  }
+
+  function closeRunDialogWindow() {
+    const windowId = resolveRunDialogWindowId();
+
+    if (!windowId || !windowManager || typeof windowManager.closeWindow !== "function") {
+      return false;
+    }
+
+    return windowManager.closeWindow(windowId);
+  }
 
   const submitHandler = (event) => {
     event.preventDefault();
 
-    const command = input.value.trim().toLowerCase();
+    const action = resolveRunCommandAction(input.value);
 
-    if (!command) {
-      status.textContent = "Enter a command.";
+    if (!action) {
+      const attemptedCommand = normalizeRunCommand(input.value);
+      if (!attemptedCommand) {
+        status.textContent = "Enter a command.";
+      } else {
+        status.textContent = `No app mapped for command \"${attemptedCommand}\".`;
+      }
       return;
     }
 
-    const appId = RUN_COMMANDS.get(command);
+    const launchedWindowId = launchApp(action.appId, action.launchPayload);
 
-    if (!appId) {
-      status.textContent = `No app mapped for command \"${command}\".`;
+    if (!launchedWindowId) {
+      status.textContent = `Unable to open ${action.normalizedCommand}.`;
       return;
     }
 
-    launchApp(appId);
-    status.textContent = `Opened ${command}.`;
+    status.textContent = `Opened ${action.normalizedCommand}.`;
+    closeRunDialogWindow();
   };
+
+  const launchReusedHandler = ({
+    appId,
+    windowId,
+    launchPayload: reusedLaunchPayload,
+  } = {}) => {
+    if (appId !== "run-dialog") {
+      return;
+    }
+
+    rememberRunDialogWindowId(windowId);
+
+    if (!(input instanceof HTMLInputElement)) {
+      return;
+    }
+
+    const prefillCommand = getRunDialogPrefillFromPayload(reusedLaunchPayload);
+
+    if (!prefillCommand) {
+      return;
+    }
+
+    input.value = prefillCommand;
+    input.focus();
+    input.select();
+    status.textContent = `Prepared command: ${prefillCommand}`;
+  };
+
+  const appLaunchedHandler = ({ appId, windowId } = {}) => {
+    if (appId !== "run-dialog") {
+      return;
+    }
+
+    rememberRunDialogWindowId(windowId);
+  };
+
+  const removeLaunchReusedListener = eventBus?.on("app:launch-reused", launchReusedHandler) || null;
+  const removeAppLaunchedListener = eventBus?.on("app:launched", appLaunchedHandler) || null;
 
   form.addEventListener("submit", submitHandler);
 
+  const initialPrefillCommand = getRunDialogPrefillFromPayload(launchPayload);
+
+  if (initialPrefillCommand && input instanceof HTMLInputElement) {
+    input.value = initialPrefillCommand;
+  }
+
   setTimeout(() => {
     input.focus();
+    if (initialPrefillCommand) {
+      input.select();
+    }
   }, 0);
 
   return {
     element: root,
     dispose() {
       form.removeEventListener("submit", submitHandler);
+
+      if (typeof removeLaunchReusedListener === "function") {
+        removeLaunchReusedListener();
+      }
+
+      if (typeof removeAppLaunchedListener === "function") {
+        removeAppLaunchedListener();
+      }
     },
   };
 }
@@ -898,6 +2108,28 @@ export function createDefaultManifests({ fileLayer, webApps = [] } = {}) {
       createContent: ({ launchPayload }) => createInternetExplorerContent(launchPayload),
     },
     {
+      id: "system-configuration",
+      title: "System Configuration",
+      iconKey: "settings",
+      placements: ["start"],
+      startGroup: "settings",
+      hidden: true,
+      window: {
+        width: 660,
+        height: 440,
+        minWidth: 520,
+        minHeight: 360,
+        resizable: false,
+        singleInstance: true,
+      },
+      createContent: ({ eventBus, launchPayload, windowManager }) =>
+        createSystemConfigurationContent({
+          eventBus,
+          launchPayload,
+          windowManager,
+        }),
+    },
+    {
       id: "run-dialog",
       title: "Run",
       iconKey: "run",
@@ -914,7 +2146,13 @@ export function createDefaultManifests({ fileLayer, webApps = [] } = {}) {
         maximizable: false,
         singleInstance: true,
       },
-      createContent: ({ launchApp }) => createRunDialogContent(launchApp),
+      createContent: ({ launchApp, eventBus, windowManager, launchPayload }) =>
+        createRunDialogContent({
+          launchApp,
+          eventBus,
+          windowManager,
+          launchPayload,
+        }),
     },
     {
       id: "task-manager",

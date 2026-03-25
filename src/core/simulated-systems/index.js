@@ -1,6 +1,7 @@
 export const SIMULATED_SYSTEM_IDS = Object.freeze({
   DESKTOP_WIN95: "desktop-win95",
   DESKTOP_WINXP_SP2: "desktop-winxp-sp2",
+  DESKTOP_UBUNTU_SERVER: "desktop-ubuntu-server",
   MOBILE_SYMBIAN_UIQ_P1I: "mobile-symbian-uiq-p1i",
   MOBILE_SYMBIAN_V1995_S60: "mobile-symbian-v1995-s60",
 });
@@ -59,6 +60,19 @@ const SYSTEM_DEFINITIONS = Object.freeze([
       "windows-xp",
       "xp",
       "sp2",
+    ]),
+  }),
+  Object.freeze({
+    id: SIMULATED_SYSTEM_IDS.DESKTOP_UBUNTU_SERVER,
+    label: "Desktop Ubuntu Server",
+    family: "desktop",
+    desktopProfile: "ubuntu-server",
+    aliases: Object.freeze([
+      "desktop-ubuntu",
+      "ubuntu",
+      "ubuntu-server",
+      "linux",
+      "linux-server",
     ]),
   }),
   Object.freeze({
@@ -211,33 +225,21 @@ export function createSimulatedSystemsRegistry() {
 
   function resolveInitialSystem({
     search = getWindowSearch(),
+    persistedSystemId,
     isMobileDevice = false,
     defaultDesktopSystemId = DEFAULT_DESKTOP_SYSTEM_ID,
     defaultMobileSystemId = DEFAULT_MOBILE_SYSTEM_ID,
   } = {}) {
-    const searchParams = toSearchParams(search);
-    const explicitSystem = resolveSystem(searchParams.get("system"));
+    // Kept for backward compatibility with existing callers, but no longer
+    // used to drive initial simulated system selection.
+    void search;
 
-    if (explicitSystem) {
+    const persistedSystem = resolveSystem(persistedSystemId);
+    if (persistedSystem) {
       return {
-        system: explicitSystem,
-        source: "query-system",
+        system: persistedSystem,
+        source: "persisted-system",
       };
-    }
-
-    const legacyVariant = readLegacyMobileVariantFromSearch({
-      search: searchParams,
-    });
-
-    if (isMobileDevice && legacyVariant.isExplicit) {
-      const systemId = resolveSystemIdForMobileVariant(legacyVariant.variant);
-      const system = resolveSystem(systemId);
-      if (system) {
-        return {
-          system,
-          source: "query-mobile-variant",
-        };
-      }
     }
 
     const fallbackSystemId = isMobileDevice ? defaultMobileSystemId : defaultDesktopSystemId;

@@ -77,7 +77,7 @@ export function createMnemonicLabelNode(label, className = "") {
   }
 
   const mnemonicNode = document.createElement("span");
-  mnemonicNode.className = "win95-mnemonic";
+  mnemonicNode.className = "os-mnemonic";
   mnemonicNode.textContent = mnemonicCharacter;
   node.append(mnemonicNode);
 

@@ -9,6 +9,66 @@ const EXPLORER_MENUS = [
   { key: "help", label: "&Help" },
 ];
 const EXPLORER_MENU_KEYS = EXPLORER_MENUS.map((menu) => menu.key);
+const EXPLORER_TOOLBAR_ITEMS = [
+  { id: "toolbar-back", label: "Back", disabled: true },
+  { id: "toolbar-forward", label: "Forward", disabled: true },
+  { type: "separator" },
+  { id: "toolbar-up", label: "Up", action: "up" },
+  { id: "toolbar-refresh", label: "Refresh", action: "refresh" },
+  { type: "separator" },
+  { id: "toolbar-properties", label: "Properties", action: "properties" },
+];
+
+function formatItemCount(count) {
+  return `${count} item${count === 1 ? "" : "s"}`;
+}
+
+function createStatusPane(className, initialText) {
+  const pane = document.createElement("p");
+  pane.className = `folder-window__status-pane ${className}`;
+  pane.textContent = initialText;
+  return pane;
+}
+
+function createExplorerToolbar(onAction) {
+  const toolbar = document.createElement("div");
+  toolbar.className = "folder-window__toolbar";
+  toolbar.setAttribute("role", "toolbar");
+  toolbar.setAttribute("aria-label", "Explorer toolbar");
+
+  const actionButtons = new Map();
+
+  for (const item of EXPLORER_TOOLBAR_ITEMS) {
+    if (item.type === "separator") {
+      const separator = document.createElement("span");
+      separator.className = "folder-window__toolbar-separator";
+      separator.setAttribute("aria-hidden", "true");
+      toolbar.append(separator);
+      continue;
+    }
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.id = item.id;
+    button.className = "folder-window__tool-button";
+    button.textContent = item.label;
+    button.disabled = Boolean(item.disabled);
+
+    if (item.action) {
+      actionButtons.set(item.action, button);
+      button.addEventListener("click", () => {
+        onAction(item.action);
+      });
+    }
+
+    toolbar.append(button);
+  }
+
+  return {
+    element: toolbar,
+    actionButtons,
+  };
+}
 
 export function createFolderWindow({
   title,
@@ -17,61 +77,131 @@ export function createFolderWindow({
   onItemActivate,
   onItemProperties,
 } = {}) {
+  const folderTitle = title || "Folder";
+  const folderSubtitle = subtitle || "Select an item to open.";
+  const folderItems = Array.isArray(items) ? items : [];
+
   const root = document.createElement("section");
   root.className = "folder-window";
   root.tabIndex = -1;
-
-  const header = document.createElement("header");
-  header.className = "folder-window__header";
-
-  const titleNode = document.createElement("h2");
-  titleNode.className = "folder-window__title";
-  titleNode.textContent = title || "Folder";
-
-  const subtitleNode = document.createElement("p");
-  subtitleNode.className = "folder-window__subtitle";
-  subtitleNode.textContent = subtitle || "Select an item to open.";
+  root.setAttribute("aria-label", `${folderTitle} explorer view`);
 
   const menuBar = document.createElement("nav");
   menuBar.className = "folder-window__menubar";
   menuBar.setAttribute("aria-label", "Explorer menu bar");
 
-  header.append(titleNode, subtitleNode, menuBar);
+  const toolbar = createExplorerToolbar((action) => {
+    runExplorerMenuAction(action);
+  });
+
+  const addressBar = document.createElement("div");
+  addressBar.className = "folder-window__addressbar";
+  addressBar.setAttribute("role", "group");
+  addressBar.setAttribute("aria-label", "Explorer address bar");
+
+  const addressLabel = document.createElement("span");
+  addressLabel.className = "folder-window__address-label";
+  addressLabel.textContent = "Address";
+
+  const addressValue = document.createElement("p");
+  addressValue.className = "folder-window__address-value";
+  addressValue.textContent = folderTitle;
+  addressValue.title = folderTitle;
+
+  addressBar.append(addressLabel, addressValue);
 
   const surfaceMount = document.createElement("div");
   surfaceMount.className = "folder-window__surface";
 
-  const statusNode = document.createElement("p");
-  statusNode.className = "folder-window__status";
-  statusNode.textContent = "Ready";
+  const statusBar = document.createElement("footer");
+  statusBar.className = "folder-window__statusbar";
 
-  root.append(header, surfaceMount, statusNode);
+  const statusMessageNode = createStatusPane("folder-window__status-pane--message", "Ready.");
+  const statusSelectionNode = createStatusPane(
+    "folder-window__status-pane--selection",
+    formatItemCount(folderItems.length),
+  );
+  const statusDetailsNode = createStatusPane(
+    "folder-window__status-pane--details",
+    folderSubtitle,
+  );
+
+  statusBar.append(statusMessageNode, statusSelectionNode, statusDetailsNode);
+
+  root.append(menuBar, toolbar.element, addressBar, surfaceMount, statusBar);
 
   const contextMenu = createContextMenu({
     container: root,
   });
+  let iconSurface = null;
 
   function setStatus(message) {
-    statusNode.textContent = message;
+    statusMessageNode.textContent = message;
+  }
+
+  function syncSelectionFeedback(selectedItems = []) {
+    const selectedCount = selectedItems.length;
+    const hasSelection = selectedCount > 0;
+    const propertiesButton = toolbar.actionButtons.get("properties");
+
+    if (propertiesButton) {
+      propertiesButton.disabled = !hasSelection;
+    }
+
+    if (!hasSelection) {
+      statusSelectionNode.textContent = formatItemCount(folderItems.length);
+      statusDetailsNode.textContent = folderSubtitle;
+      return;
+    }
+
+    statusSelectionNode.textContent =
+      selectedCount === 1 ? "1 selected" : `${selectedCount} selected`;
+
+    if (selectedCount === 1) {
+      statusDetailsNode.textContent = selectedItems[0].label;
+      return;
+    }
+
+    statusDetailsNode.textContent = `${selectedCount} of ${formatItemCount(folderItems.length)}`;
+  }
+
+  function getSelectedItems() {
+    return iconSurface?.getSelectedItems() || [];
+  }
+
+  function activateItem(item) {
+    const activationResult = onItemActivate?.(item);
+
+    if (activationResult === false) {
+      setStatus(`${item.label} is unavailable in this build.`);
+      return false;
+    }
+
+    setStatus(`Opened ${item.label}.`);
+    return true;
   }
 
   function runExplorerMenuAction(action, payload = {}) {
     if (action === "open-selected") {
-      const selectedItems = iconSurface.getSelectedItems();
+      const selectedItems = getSelectedItems();
 
       if (selectedItems.length === 0) {
         setStatus("No item selected.");
         return;
       }
 
-      onItemActivate?.(selectedItems[0]);
-      setStatus(`Opened ${selectedItems[0].label}`);
+      activateItem(selectedItems[0]);
       return;
     }
 
     if (action === "select-all") {
-      iconSurface.selectAll();
-      setStatus(`Selected ${iconSurface.getSelectedItems().length} item(s).`);
+      iconSurface?.selectAll();
+      setStatus(`Selected ${getSelectedItems().length} items.`);
+      return;
+    }
+
+    if (action === "up") {
+      setStatus("Up one level is unavailable in this build.");
       return;
     }
 
@@ -86,17 +216,26 @@ export function createFolderWindow({
     }
 
     if (action === "about") {
-      setStatus(`About ${title || "Folder"}: Win95 Explorer simulation.`);
+      setStatus(`About ${folderTitle}: Win95 Explorer simulation.`);
       return;
     }
 
-    if (action === "properties" && payload.item) {
-      onItemProperties?.(payload.item);
-      setStatus(`${payload.item.label}: properties unavailable in this build.`);
+    if (action === "properties") {
+      const selectedItem = payload.item || getSelectedItems()[0];
+
+      if (!selectedItem) {
+        setStatus("No item selected.");
+        return;
+      }
+
+      onItemProperties?.(selectedItem);
+      setStatus(`${selectedItem.label}: properties unavailable in this build.`);
     }
   }
 
   function getExplorerMenuEntries(menuKey) {
+    const hasSelection = getSelectedItems().length > 0;
+
     if (menuKey === "file") {
       return [
         {
@@ -104,6 +243,7 @@ export function createFolderWindow({
           label: "Open",
           iconKey: "folder",
           action: "open-selected",
+          disabled: !hasSelection,
         },
         {
           id: "file-explore",
@@ -128,7 +268,8 @@ export function createFolderWindow({
           id: "file-properties",
           label: "Properties",
           iconKey: "settings",
-          disabled: true,
+          action: "properties",
+          disabled: !hasSelection,
         },
       ];
     }
@@ -146,6 +287,7 @@ export function createFolderWindow({
           label: "Select All",
           iconKey: "document",
           action: "select-all",
+          disabled: folderItems.length === 0,
         },
       ];
     }
@@ -271,14 +413,28 @@ export function createFolderWindow({
     return true;
   }
 
-  const iconSurface = createIconSurface({
+  iconSurface = createIconSurface({
     container: surfaceMount,
-    items,
+    items: folderItems,
     className: "icon-surface--folder",
-    ariaLabel: `${title || "Folder"} items`,
+    ariaLabel: `${folderTitle} items`,
     onActivate: (item) => {
-      onItemActivate?.(item);
-      setStatus(`Opened ${item.label}`);
+      activateItem(item);
+    },
+    onSelectionChanged: (selectedItems) => {
+      syncSelectionFeedback(selectedItems);
+
+      if (selectedItems.length === 0) {
+        setStatus("Ready.");
+        return;
+      }
+
+      if (selectedItems.length === 1) {
+        setStatus(`Selected ${selectedItems[0].label}.`);
+        return;
+      }
+
+      setStatus(`Selected ${selectedItems.length} items.`);
     },
     onContextMenu: (details) => {
       if (details.type === "item") {
@@ -309,8 +465,7 @@ export function createFolderWindow({
           ],
           onSelect(entry) {
             if (entry.action === "open") {
-              onItemActivate?.(details.item);
-              setStatus(`Opened ${details.item.label}`);
+              activateItem(details.item);
               return;
             }
 
@@ -345,7 +500,7 @@ export function createFolderWindow({
             label: "Properties",
             iconKey: "settings",
             action: "properties",
-            disabled: true,
+            disabled: false,
           },
         ],
         onSelect(entry) {
@@ -356,6 +511,7 @@ export function createFolderWindow({
       });
     },
   });
+  syncSelectionFeedback([]);
 
   function onRootKeydown(event) {
     if (!isActiveWindow()) {
@@ -452,7 +608,7 @@ export function createFolderWindow({
     dispose() {
       document.removeEventListener("keydown", onRootKeydown);
       document.removeEventListener("keyup", onRootKeyup);
-      iconSurface.destroy();
+      iconSurface?.destroy();
       contextMenu.destroy();
     },
   };

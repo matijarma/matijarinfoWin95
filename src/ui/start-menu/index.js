@@ -10,8 +10,9 @@ function getMenuButtons(menu) {
     return [];
   }
 
+  // Keep class names profile-neutral; Win95/XP visuals are scoped in CSS profile selectors.
   return Array.from(
-    menu.querySelectorAll(":scope > .win95-menu__item > .win95-menu__button:not(:disabled)"),
+    menu.querySelectorAll(":scope > .os-menu__item > .os-menu__button:not(:disabled)"),
   );
 }
 
@@ -34,7 +35,7 @@ export function createStartMenu({
   function closeSubtree(item) {
     item.classList.remove("is-open");
 
-    for (const nestedItem of item.querySelectorAll(":scope .win95-menu__item.is-open")) {
+    for (const nestedItem of item.querySelectorAll(":scope .os-menu__item.is-open")) {
       nestedItem.classList.remove("is-open");
     }
   }
@@ -46,7 +47,7 @@ export function createStartMenu({
       return;
     }
 
-    const siblings = menu.querySelectorAll(":scope > .win95-menu__item.is-open");
+    const siblings = menu.querySelectorAll(":scope > .os-menu__item.is-open");
 
     for (const sibling of siblings) {
       if (sibling === item) {
@@ -71,23 +72,23 @@ export function createStartMenu({
 
   function buildMenuList(menuEntries, level = 0, parentItem = null) {
     const list = document.createElement("ul");
-    list.className = `win95-menu ${level > 0 ? "win95-menu--submenu" : ""}`.trim();
+    list.className = `os-menu ${level > 0 ? "os-menu--submenu" : ""}`.trim();
 
     for (const entry of menuEntries) {
       if (entry.type === "separator") {
         const separator = document.createElement("li");
-        separator.className = "win95-menu__separator";
+        separator.className = "os-menu__separator";
         separator.setAttribute("role", "separator");
         list.append(separator);
         continue;
       }
 
       const item = document.createElement("li");
-      item.className = "win95-menu__item";
+      item.className = "os-menu__item";
 
       const button = document.createElement("button");
       button.type = "button";
-      button.className = "win95-menu__button";
+      button.className = "os-menu__button";
       button.dataset.level = String(level);
 
       if (entry.disabled) {
@@ -97,7 +98,7 @@ export function createStartMenu({
       button.append(createIconGlyph(entry.iconKey, { compact: true, iconUrl: entry.iconUrl }));
       const { node: labelNode, parsed: parsedLabel } = createMnemonicLabelNode(
         entry.label,
-        "win95-menu__label",
+        "os-menu__label",
       );
       button.dataset.menuId = entry.id || parsedLabel.label;
       button.append(labelNode);
@@ -108,7 +109,7 @@ export function createStartMenu({
         item.classList.add("has-submenu");
 
         const arrow = document.createElement("span");
-        arrow.className = "win95-menu__arrow";
+        arrow.className = "os-menu__arrow";
         arrow.textContent = ">";
         button.append(arrow);
 
@@ -182,7 +183,7 @@ export function createStartMenu({
   root.append(shell);
 
   function closeSubmenus() {
-    for (const item of root.querySelectorAll(".win95-menu__item.is-open")) {
+    for (const item of root.querySelectorAll(".os-menu__item.is-open")) {
       item.classList.remove("is-open");
     }
   }
@@ -193,7 +194,7 @@ export function createStartMenu({
   }
 
   function focusSibling(currentButton, direction) {
-    const menu = currentButton.closest(".win95-menu");
+    const menu = currentButton.closest(".os-menu");
     const buttons = getMenuButtons(menu);
 
     if (buttons.length === 0) {
@@ -274,7 +275,7 @@ export function createStartMenu({
       return;
     }
 
-    const activeButton = document.activeElement?.closest?.(".win95-menu__button");
+    const activeButton = document.activeElement?.closest?.(".os-menu__button");
     const mnemonic = getMnemonicFromKeyEvent(event);
 
     if (event.key === "Escape") {
@@ -283,7 +284,7 @@ export function createStartMenu({
     }
 
     if (mnemonic) {
-      const activeMenu = activeButton?.closest(".win95-menu") || menuList;
+      const activeMenu = activeButton?.closest(".os-menu") || menuList;
       const handled = activateByMnemonic(activeMenu, mnemonic);
 
       if (!handled && activeMenu !== menuList) {
@@ -332,7 +333,7 @@ export function createStartMenu({
         event.preventDefault();
         meta.parentItem.classList.remove("is-open");
         const parentButton = meta.parentItem.querySelector(
-          ":scope > .win95-menu__button:not(:disabled)",
+          ":scope > .os-menu__button:not(:disabled)",
         );
         parentButton?.focus();
       }
@@ -347,7 +348,7 @@ export function createStartMenu({
 
     if (event.key === "Home") {
       event.preventDefault();
-      const menu = activeButton.closest(".win95-menu");
+      const menu = activeButton.closest(".os-menu");
       const buttons = getMenuButtons(menu);
       buttons[0]?.focus();
       return;
@@ -355,7 +356,7 @@ export function createStartMenu({
 
     if (event.key === "End") {
       event.preventDefault();
-      const menu = activeButton.closest(".win95-menu");
+      const menu = activeButton.closest(".os-menu");
       const buttons = getMenuButtons(menu);
       buttons.at(-1)?.focus();
     }

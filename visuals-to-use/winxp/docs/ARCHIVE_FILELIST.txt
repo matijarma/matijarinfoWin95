@@ -1,0 +1,341 @@
+WinXp/Clip/
+WinXp/Clip/ase/
+WinXp/Clip/ase/clip (airplane).ase
+WinXp/Clip/ase/clip (check).ase
+WinXp/Clip/ase/clip (cool).ase
+WinXp/Clip/ase/clip (eyes).ase
+WinXp/Clip/ase/clip (idle).ase
+WinXp/Clip/ase/clip (leave).ase
+WinXp/Clip/ase/clip (listen).ase
+WinXp/Clip/ase/clip (music).ase
+WinXp/Clip/ase/clip (noted).ase
+WinXp/Clip/ase/clip (office).ase
+WinXp/Clip/ase/clip (point down).ase
+WinXp/Clip/ase/clip (point left).ase
+WinXp/Clip/ase/clip (point right).ase
+WinXp/Clip/ase/clip (point up).ase
+WinXp/Clip/ase/clip (read).ase
+WinXp/Clip/ase/clip (showel).ase
+WinXp/Clip/ase/clip (sleep).ase
+WinXp/Clip/ase/clip (spyglass).ase
+WinXp/Clip/ase/clip (think).ase
+WinXp/Clip/ase/clip (tired).ase
+WinXp/Clip/ase/clip (wakeup).ase
+WinXp/Clip/ase/clip (watch front).ase
+WinXp/Clip/ase/clip (watch left).ase
+WinXp/Clip/ase/clip (watch right).ase
+WinXp/Clip/ase/clip (weird).ase
+WinXp/Clip/sheets/
+WinXp/Clip/sheets/clip (airplane)_sheet.png
+WinXp/Clip/sheets/clip (check)_sheet.png
+WinXp/Clip/sheets/clip (cool)_sheet.png
+WinXp/Clip/sheets/clip (eyes)_sheet.png
+WinXp/Clip/sheets/clip (idle)_sheet.png
+WinXp/Clip/sheets/clip (leave)_sheet.png
+WinXp/Clip/sheets/clip (listen)_sheet.png
+WinXp/Clip/sheets/clip (music)_sheet.png
+WinXp/Clip/sheets/clip (noted)_sheet.png
+WinXp/Clip/sheets/clip (office)_sheet.png
+WinXp/Clip/sheets/clip (point down)_sheet.png
+WinXp/Clip/sheets/clip (point left)_sheet.png
+WinXp/Clip/sheets/clip (point right)_sheet.png
+WinXp/Clip/sheets/clip (point up)_sheet.png
+WinXp/Clip/sheets/clip (read)_sheet.png
+WinXp/Clip/sheets/clip (showel)_sheet.png
+WinXp/Clip/sheets/clip (sleep)_sheet.png
+WinXp/Clip/sheets/clip (spyglass)_sheet.png
+WinXp/Clip/sheets/clip (think)_sheet.png
+WinXp/Clip/sheets/clip (tired)_sheet.png
+WinXp/Clip/sheets/clip (wakeup)_sheet.png
+WinXp/Clip/sheets/clip (watch front)_sheet.png
+WinXp/Clip/sheets/clip (watch left)_sheet.png
+WinXp/Clip/sheets/clip (watch right)_sheet.png
+WinXp/Clip/sheets/clip (weird)_sheet.png
+WinXp/Cursor/
+WinXp/Cursor/3dgarro.png
+WinXp/Cursor/3dgbeam.png
+WinXp/Cursor/3dgcross.png
+WinXp/Cursor/3dghelpsel.png
+WinXp/Cursor/3dgmove.png
+WinXp/Cursor/3dgnesw.png
+WinXp/Cursor/3dgno.png
+WinXp/Cursor/3dgnodrop.png
+WinXp/Cursor/3dgns.png
+WinXp/Cursor/3dgnwse.png
+WinXp/Cursor/3dgpen.png
+WinXp/Cursor/3dgwe.png
+WinXp/Cursor/3dsarro.png
+WinXp/Cursor/3dsbeam.png
+WinXp/Cursor/3dscross.png
+WinXp/Cursor/3dshelpsel.png
+WinXp/Cursor/3dsmove.png
+WinXp/Cursor/3dsnesw.png
+WinXp/Cursor/3dsno.png
+WinXp/Cursor/3dsnodrop.png
+WinXp/Cursor/3dsns.png
+WinXp/Cursor/3dsnwse.png
+WinXp/Cursor/3dspen.png
+WinXp/Cursor/3dswe.png
+WinXp/Cursor/3dwarro.png
+WinXp/Cursor/3dwbeam.png
+WinXp/Cursor/3dwcross.png
+WinXp/Cursor/3dwhelpsel.png
+WinXp/Cursor/3dwmove.png
+WinXp/Cursor/3dwnesw.png
+WinXp/Cursor/3dwno.png
+WinXp/Cursor/3dwnodrop.png
+WinXp/Cursor/3dwns.png
+WinXp/Cursor/3dwnwse.png
+WinXp/Cursor/3dwpen.png
+WinXp/Cursor/3dwwe.png
+WinXp/Cursor/appstar1_st.png
+WinXp/Cursor/appstar2_st.png
+WinXp/Cursor/appstar3_st.png
+WinXp/Cursor/arrow_i.png
+WinXp/Cursor/arrow_il.png
+WinXp/Cursor/arrow_im.png
+WinXp/Cursor/arrow_l.png
+WinXp/Cursor/arrow_m.png
+WinXp/Cursor/arrow_r.png
+WinXp/Cursor/arrow_rl.png
+WinXp/Cursor/arrow_rm.png
+WinXp/Cursor/beam_i.png
+WinXp/Cursor/beam_il.png
+WinXp/Cursor/beam_im.png
+WinXp/Cursor/beam_l.png
+WinXp/Cursor/beam_m.png
+WinXp/Cursor/beam_r.png
+WinXp/Cursor/beam_rl.png
+WinXp/Cursor/beam_rm.png
+WinXp/Cursor/busy_i.png
+WinXp/Cursor/busy_il.png
+WinXp/Cursor/busy_im.png
+WinXp/Cursor/busy_l.png
+WinXp/Cursor/busy_m.png
+WinXp/Cursor/busy_r.png
+WinXp/Cursor/busy_rl.png
+WinXp/Cursor/busy_rm.png
+WinXp/Cursor/cross.png
+WinXp/Cursor/cross_i.png
+WinXp/Cursor/cross_il.png
+WinXp/Cursor/cross_im.png
+WinXp/Cursor/cross_l.png
+WinXp/Cursor/cross_m.png
+WinXp/Cursor/cross_r.png
+WinXp/Cursor/cross_rl.png
+WinXp/Cursor/cross_rm.png
+WinXp/Cursor/default_arrow.png
+WinXp/Cursor/default_box.png
+WinXp/Cursor/default_busy.png
+WinXp/Cursor/default_dvd.png
+WinXp/Cursor/default_helpsel.png
+WinXp/Cursor/default_ibeam.png
+WinXp/Cursor/default_link.png
+WinXp/Cursor/default_move.png
+WinXp/Cursor/default_no.png
+WinXp/Cursor/default_pen.png
+WinXp/Cursor/default_scroll_e.png
+WinXp/Cursor/default_scroll_ew.png
+WinXp/Cursor/default_scroll_move.png
+WinXp/Cursor/default_scroll_n.png
+WinXp/Cursor/default_scroll_ne.png
+WinXp/Cursor/default_scroll_ns.png
+WinXp/Cursor/default_scroll_nw.png
+WinXp/Cursor/default_scroll_s.png
+WinXp/Cursor/default_scroll_se.png
+WinXp/Cursor/default_scroll_sw.png
+WinXp/Cursor/default_scroll_w.png
+WinXp/Cursor/default_size1.png
+WinXp/Cursor/default_size2.png
+WinXp/Cursor/default_size3.png
+WinXp/Cursor/default_size4.png
+WinXp/Cursor/default_up.png
+WinXp/Cursor/default_wait.png
+WinXp/Cursor/harrow.png
+WinXp/Cursor/hcross.png
+WinXp/Cursor/help_i.png
+WinXp/Cursor/help_il.png
+WinXp/Cursor/help_im.png
+WinXp/Cursor/help_l.png
+WinXp/Cursor/help_m.png
+WinXp/Cursor/help_r.png
+WinXp/Cursor/help_rl.png
+WinXp/Cursor/help_rm.png
+WinXp/Cursor/hibeam.png
+WinXp/Cursor/hmove.png
+WinXp/Cursor/hnesw.png
+WinXp/Cursor/hnodrop.png
+WinXp/Cursor/hns.png
+WinXp/Cursor/hnwse.png
+WinXp/Cursor/hourgla2_st.png
+WinXp/Cursor/hourgla3_st.png
+WinXp/Cursor/hourglas_st.png
+WinXp/Cursor/hwe.png
+WinXp/Cursor/lappstrt.png
+WinXp/Cursor/larrow.png
+WinXp/Cursor/lcross.png
+WinXp/Cursor/lhelpsel.png
+WinXp/Cursor/libeam.png
+WinXp/Cursor/link_i.png
+WinXp/Cursor/link_il.png
+WinXp/Cursor/link_im.png
+WinXp/Cursor/link_l.png
+WinXp/Cursor/link_m.png
+WinXp/Cursor/link_r.png
+WinXp/Cursor/link_rl.png
+WinXp/Cursor/link_rm.png
+WinXp/Cursor/llink.png
+WinXp/Cursor/lmove.png
+WinXp/Cursor/lnesw.png
+WinXp/Cursor/lnodrop.png
+WinXp/Cursor/lns.png
+WinXp/Cursor/lnwse.png
+WinXp/Cursor/lpen.png
+WinXp/Cursor/lup.png
+WinXp/Cursor/lwait.png
+WinXp/Cursor/lwe.png
+WinXp/Cursor/move_i.png
+WinXp/Cursor/move_il.png
+WinXp/Cursor/move_im.png
+WinXp/Cursor/move_l.png
+WinXp/Cursor/move_m.png
+WinXp/Cursor/move_r.png
+WinXp/Cursor/move_rl.png
+WinXp/Cursor/move_rm.png
+WinXp/Cursor/no_i.png
+WinXp/Cursor/no_il.png
+WinXp/Cursor/no_im.png
+WinXp/Cursor/no_l.png
+WinXp/Cursor/no_m.png
+WinXp/Cursor/no_r.png
+WinXp/Cursor/no_rl.png
+WinXp/Cursor/no_rm.png
+WinXp/Cursor/pen_i.png
+WinXp/Cursor/pen_il.png
+WinXp/Cursor/pen_im.png
+WinXp/Cursor/pen_l.png
+WinXp/Cursor/pen_m.png
+WinXp/Cursor/pen_r.png
+WinXp/Cursor/pen_rl.png
+WinXp/Cursor/pen_rm.png
+WinXp/Cursor/person.png
+WinXp/Cursor/pin.png
+WinXp/Cursor/size1_i.png
+WinXp/Cursor/size1_il.png
+WinXp/Cursor/size1_im.png
+WinXp/Cursor/size1_l.png
+WinXp/Cursor/size1_m.png
+WinXp/Cursor/size1_r.png
+WinXp/Cursor/size1_rl.png
+WinXp/Cursor/size1_rm.png
+WinXp/Cursor/size2_i.png
+WinXp/Cursor/size2_il.png
+WinXp/Cursor/size2_im.png
+WinXp/Cursor/size2_l.png
+WinXp/Cursor/size2_m.png
+WinXp/Cursor/size2_r.png
+WinXp/Cursor/size2_rl.png
+WinXp/Cursor/size2_rm.png
+WinXp/Cursor/size3_i.png
+WinXp/Cursor/size3_il.png
+WinXp/Cursor/size3_im.png
+WinXp/Cursor/size3_l.png
+WinXp/Cursor/size3_m.png
+WinXp/Cursor/size3_r.png
+WinXp/Cursor/size3_rl.png
+WinXp/Cursor/size3_rm.png
+WinXp/Cursor/size4_i.png
+WinXp/Cursor/size4_il.png
+WinXp/Cursor/size4_im.png
+WinXp/Cursor/size4_l.png
+WinXp/Cursor/size4_m.png
+WinXp/Cursor/size4_r.png
+WinXp/Cursor/size4_rl.png
+WinXp/Cursor/size4_rm.png
+WinXp/Cursor/up_i.png
+WinXp/Cursor/up_il.png
+WinXp/Cursor/up_im.png
+WinXp/Cursor/up_l.png
+WinXp/Cursor/up_m.png
+WinXp/Cursor/up_r.png
+WinXp/Cursor/up_rl.png
+WinXp/Cursor/up_rm.png
+WinXp/Cursor/wait_i.png
+WinXp/Cursor/wait_il.png
+WinXp/Cursor/wait_im.png
+WinXp/Cursor/wait_l.png
+WinXp/Cursor/wait_m.png
+WinXp/Cursor/wait_r.png
+WinXp/Cursor/wait_rl.png
+WinXp/Cursor/wait_rm.png
+WinXp/Fonts/
+WinXp/Fonts/framdit.ttf
+WinXp/Fonts/tahoma.ttf
+WinXp/Frame/
+WinXp/Frame/UI Theme.png
+WinXp/Icons/
+WinXp/Icons/WinIcons_16.png
+WinXp/Icons/WinIcons_32.png
+WinXp/Icons/WinIcons_48.png
+WinXp/Logo/
+WinXp/Logo/53df31d96b69b8efbd3f86ba8febdb8a.png
+WinXp/Logo/a350695389ccdf33940bf5efbf436566.png
+WinXp/Logo/Boot Settings Screen.png
+WinXp/Logo/ee826d0670ddf680e362b4336d2e3ae5.png
+WinXp/Logo/WindowsLogo-small.png
+WinXp/Misc/
+WinXp/Misc/mineswapper.png
+WinXp/Pack by NullTale.url
+WinXp/Sounds/
+WinXp/Sounds/Windows Feed Discovered.wav
+WinXp/Sounds/Windows Information Bar.wav
+WinXp/Sounds/Windows Navigation Start.wav
+WinXp/Sounds/Windows Pop-up Blocked.wav
+WinXp/Sounds/Windows XP Balloon.wav
+WinXp/Sounds/Windows XP Battery Critical.wav
+WinXp/Sounds/Windows XP Battery Low.wav
+WinXp/Sounds/Windows XP Critical Stop.wav
+WinXp/Sounds/Windows XP Default.wav
+WinXp/Sounds/Windows XP Ding.wav
+WinXp/Sounds/Windows XP Error.wav
+WinXp/Sounds/Windows XP Exclamation.wav
+WinXp/Sounds/Windows XP Hardware Fail.wav
+WinXp/Sounds/Windows XP Hardware Insert.wav
+WinXp/Sounds/Windows XP Hardware Remove.wav
+WinXp/Sounds/Windows XP Information Bar.wav
+WinXp/Sounds/Windows XP Logoff Sound.wav
+WinXp/Sounds/Windows XP Logon Sound.wav
+WinXp/Sounds/Windows XP Menu Command.wav
+WinXp/Sounds/Windows XP Minimize.wav
+WinXp/Sounds/Windows XP Notify.wav
+WinXp/Sounds/Windows XP Pop-up Blocked.wav
+WinXp/Sounds/Windows XP Print complete.wav
+WinXp/Sounds/Windows XP Recycle.wav
+WinXp/Sounds/Windows XP Restore.wav
+WinXp/Sounds/Windows XP Ringin.wav
+WinXp/Sounds/Windows XP Ringout.wav
+WinXp/Sounds/Windows XP Shutdown.wav
+WinXp/Sounds/Windows XP Start.wav
+WinXp/Sounds/Windows XP Startup.wav
+WinXp/Wallpapers/
+WinXp/Wallpapers/Ascent.png
+WinXp/Wallpapers/Autumn.png
+WinXp/Wallpapers/Azul.png
+WinXp/Wallpapers/Bliss.png
+WinXp/Wallpapers/Crystal.png
+WinXp/Wallpapers/Follow.png
+WinXp/Wallpapers/Friend.png
+WinXp/Wallpapers/Home.png
+WinXp/Wallpapers/Moon_flower.png
+WinXp/Wallpapers/Peace.png
+WinXp/Wallpapers/Power.png
+WinXp/Wallpapers/Purple_flower.png
+WinXp/Wallpapers/Radiance.png
+WinXp/Wallpapers/Red_moon_desert.png
+WinXp/Wallpapers/Ripple.png
+WinXp/Wallpapers/Stonehenge.png
+WinXp/Wallpapers/Tulips.png
+WinXp/Wallpapers/Vortec_space.png
+WinXp/Wallpapers/Wind.png
+WinXp/Wallpapers/Windows_XP_Home_Edition.png
+WinXp/Wallpapers/Windows_XP_Professional.png

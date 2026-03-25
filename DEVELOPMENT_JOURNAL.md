@@ -404,3 +404,109 @@ This file is append-only and serves as the running log for project progress.
   - No browser screenshot automation run in this pass; validation is syntax/static-level.
 - Next steps:
   - Run browser-level QA with forced URL variants to validate perceived fidelity and tune spacing/iconography further.
+
+## 2026-03-25 21:40 (CET)
+- Summary: Implemented multi-OS desktop architecture (Win95 + XP SP2), persisted OS boot target, and `msconfig`-driven system switching workflow.
+- Changes made:
+  - Added simulated-systems registry/host flow for multiple desktop and mobile OS identities:
+    - Added explicit desktop IDs (`desktop-win95`, `desktop-winxp-sp2`) and aliases.
+    - Updated initial system resolution to prefer persisted system selection over URL query.
+  - Added persistent simulated-system selection in host (`localStorage` key: `simulated-system-id`) and removed URL-based system synchronization.
+  - Added startup URL cleanup in `src/main.js` to strip legacy query keys (`system`, `mobileVariant`, `mobile_variant`, `symbian`) via `history.replaceState`.
+  - Added desktop profile support for Win95 and XP SP2 with per-profile transition icon metadata.
+  - Replaced direct upgrade/downgrade shortcuts with `Change OS` shortcut that opens Run prefilled with `msconfig /boot`.
+  - Added `System Configuration` app (`msconfig`) with tab model and Boot tab:
+    - Lists installed OS entries.
+    - Supports `Apply` (persist default boot target) and `Apply and Restart` (reboot + switch).
+  - Extended Run command resolution for `msconfig` and boot-tab launch payload routing.
+  - Added reboot-aware switch path in desktop runtime:
+    - `shell:system-switch-requested` can queue reboot transitions.
+    - Switch executes after power-off and remounts target system with auto-boot context.
+  - Added XP boot/shutdown visual/audio pipeline and distinct XP boot screen path (no Win95 asset reuse).
+  - Added selective XP asset extraction from `WinXp.zip` and docs:
+    - curated runtime-ready assets under `visuals-to-use/winxp/`
+    - archive index + inventory documentation for deferred assets.
+- Decisions:
+  - Make `localStorage` the source of truth for selected default boot OS.
+  - Route OS changes through `msconfig /boot` for realism and future extensibility (more installed OS targets).
+  - Keep query-string overrides as legacy compatibility only (cleanup on load), not core runtime state.
+- Risks / blockers:
+  - Browser-level interaction QA was manual/syntax-oriented; no full automated UX regression suite for multi-OS flows yet.
+  - Fidelity still depends on iterative CSS tuning across app surfaces and shell chrome.
+- Next steps:
+  - Add stronger visual parity pass for system apps and Explorer interiors under both Win95 and XP.
+  - Add browser smoke tests for `Change OS` -> Run -> `msconfig` -> Apply/Restart -> boot target landing.
+
+## 2026-03-25 23:30 (CET)
+- Summary: Addressed post-integration usability issues for BIOS boot entry behavior, `msconfig` boot-tab usability, Run auto-close, and Explorer-like interior chrome.
+- Changes made:
+  - Enforced BIOS POST/prompt on fresh load for all desktop OS profiles (including XP), removing quick-boot startup path dependence.
+  - Updated XP profile startup prompt mode to BIOS-first parity with Win95.
+  - Reworked `msconfig` Boot tab UI for reliable visibility/clickability:
+    - Explicit boot-entry list/cards with full-row selection behavior.
+    - State labels (current OS, saved default, selected), per-entry action button, keyboard activation.
+    - Added dedicated Boot-tab styling in both Win95 and XP theme scopes.
+  - Extended run-command alias handling for common `msconfig boot` command variants.
+  - Updated Run dialog behavior to close after successful app command execution.
+  - Reworked folder-window internals from plain content panes to Explorer-like interior structure:
+    - menubar, toolbar, address bar, multi-pane status bar.
+    - live selection/status feedback and selection-aware menu/toolbar actions.
+  - Migrated Control Panel app content to use folder-window/Explorer shell pattern instead of a plain white utility pane.
+- Decisions:
+  - Prefer behavior-level guarantees for startup flow (BIOS first) instead of relying solely on profile defaults.
+  - Treat `msconfig` Boot tab as a first-class interactive surface with explicit layout and interaction affordances.
+  - Standardize app-window interior chrome toward Explorer conventions for baseline shell authenticity.
+- Risks / blockers:
+  - Some non-Explorer system apps still need deeper pixel-fidelity passes for full OS parity.
+  - No Playwright/browser screenshot assertions currently enforce `msconfig` Boot tab visibility and clickability regressions.
+- Next steps:
+  - Add automated UI checks for Boot-tab OS row selection, Apply/Restart flow, and Run auto-close.
+  - Continue app-by-app parity pass (menu/toolbar/address/status fidelity and spacing metrics) for both Win95 and XP.
+
+## 2026-03-26 00:23 (CET)
+- Summary: Rebuilt `msconfig` layout behavior to remove multi-panel overlap, restore usability, and keep Win95/XP presentation separated.
+- Changes made:
+  - Completed a full structural rebuild of System Configuration rendering with profile-specific tab sets (Win95 vs XP) and a real dialog layout (`header -> tabs/content -> fixed footer actions`).
+  - Fixed the root cause of the unusable window: inactive tab panels were not being hidden because `.msconfig__panel` forced `display: grid`; added explicit `.msconfig__panel[hidden] { display: none; }`.
+  - Added missing style definitions required by rebuilt markup (`msconfig__dialog`, script list/check rows, boot options fields, input styling, primary action button) and constrained boot list/panel scrolling.
+  - Reworked footer/actions sizing so `OK`, `Cancel`, `Apply`, and `Apply and Restart` stay visible and reachable without chaotic internal layout expansion.
+  - Added stronger XP-specific `msconfig` visual overrides while preserving Win95 defaults to prevent cross-profile visual bleed.
+  - Wired `windowManager` into `system-configuration` app content creation so `OK`/`Cancel` close behavior resolves the correct window instance.
+  - Set `system-configuration` window manifest to `resizable: false` to match dialog behavior and prevent geometry-driven breakage.
+  - Ran syntax validation (`node --check src/apps/manifests.js`) after patching.
+- Decisions:
+  - Treat `msconfig` as a strict single-surface dialog where only one panel is rendered at a time and footer actions are always anchored.
+  - Keep boot-target persistence on `localStorage["simulated-system-id"]` so `Apply` directly affects next startup target.
+- Risks / blockers:
+  - No automated browser test currently asserts `.msconfig__panel[hidden]` behavior, footer visibility, or boot-target persistence path end-to-end.
+- Next steps:
+  - Add a browser regression test for `msconfig /boot` tab switching and footer visibility.
+  - Add an end-to-end test for selecting XP, pressing `Apply`, and confirming XP boot on reload.
+
+## 2026-03-26 01:32 (CET)
+- Summary: Added Ubuntu Server shell UX upgrades and enforced BIOS-first power-on sequence for Ubuntu runtime parity with desktop boot behavior.
+- Changes made:
+  - Implemented Ubuntu shell interaction improvements in `src/desktop-shell/ubuntu-server-shell.js`:
+    - Persisted command history in `localStorage` (`ubuntu-server.shell.history.v1`) with bounded retention (300 entries).
+    - Added shell-style history navigation via `ArrowUp` / `ArrowDown`, including draft restore behavior.
+    - Added `history` command output.
+    - Improved input readiness with `autofocus` + delayed focus reinforcement so typing works immediately after shell load.
+    - Allowed empty-enter behavior: pressing Enter on empty input now emits an empty output row (shell-like blank line behavior).
+  - Improved Ubuntu shell layout comfort in `src/styles/main.css`:
+    - Introduced centered session container (`.ubuntu-shell__session`) so prompt/input remains directly below output in the center area, rather than feeling bottom-stuck.
+  - Enforced BIOS-first startup for Ubuntu:
+    - Added BIOS POST rendering flow in `src/desktop-shell/ubuntu-server-shell.js` using shared BIOS profile helpers.
+    - Updated all Ubuntu power-on paths to route through BIOS before Ubuntu boot log/terminal:
+      - initial auto-boot mount,
+      - power-on from halted screen,
+      - in-shell reboot targeting Ubuntu,
+      - external `requestPowerOn()` entry.
+- Decisions:
+  - Keep Ubuntu as a shell-only runtime (no GUI desktop/window layer), but preserve hardware-faithful startup semantics (BIOS -> OS boot).
+  - Reuse shared BIOS profile generation (`buildBiosPostLines`, `readBiosProfile`) for consistency with existing desktop systems.
+- Risks / blockers:
+  - Ubuntu BIOS stage currently supports continue behavior only (no BIOS setup utility branch in Ubuntu runtime).
+  - No browser automation currently verifies Ubuntu BIOS-first sequencing + history persistence paths end-to-end.
+- Next steps:
+  - Add automated UI coverage for Ubuntu boot chain (`power on -> BIOS -> boot log -> shell`).
+  - Add focused UX regression checks for history navigation and auto-focus behavior after runtime remount.

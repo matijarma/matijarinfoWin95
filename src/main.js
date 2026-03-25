@@ -10,6 +10,39 @@ if (!root) {
   throw new Error("Missing #app mount node.");
 }
 
+function stripLegacySystemQueryParams() {
+  if (!window.history || !window.location) {
+    return;
+  }
+
+  const url = new URL(window.location.href);
+  const legacyKeys = [
+    "system",
+    "mobileVariant",
+    "mobile_variant",
+    "symbian",
+  ];
+
+  let hasChanged = false;
+
+  for (const key of legacyKeys) {
+    if (!url.searchParams.has(key)) {
+      continue;
+    }
+
+    url.searchParams.delete(key);
+    hasChanged = true;
+  }
+
+  if (!hasChanged) {
+    return;
+  }
+
+  window.history.replaceState(window.history.state, "", url);
+}
+
+stripLegacySystemQueryParams();
+
 const registry = createSimulatedSystemsRegistry();
 const host = createSimulatedSystemsHost({
   root,
@@ -38,7 +71,6 @@ const host = createSimulatedSystemsHost({
 
 void host
   .mountInitial({
-    search: window.location.search,
     isMobileDevice: isProbablyMobile(),
   })
   .catch((error) => {

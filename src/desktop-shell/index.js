@@ -36,33 +36,18 @@ const WIN95_SHUTDOWN_VIDEO_URL = new URL(
   "../../visuals-to-use/win95shutdownvideoaudio.mp4",
   import.meta.url,
 ).toString();
-
-function buildBootPreludeLines(biosProfile, shellProfile) {
-  const lines = [
-    "Starting MS-DOS...",
-    "CONFIG.SYS: DEVICE=HIMEM.SYS /TESTMEM:ON",
-    "CONFIG.SYS: DEVICE=EMM386.EXE RAM 4096",
-    "AUTOEXEC.BAT: SMARTDRV /X",
-    "AUTOEXEC.BAT: SET TEMP=C:\\WINDOWS\\TEMP",
-    `Detected CPU profile: ${getBiosCpuLabel(biosProfile)}`,
-    `Network stack: ${getBiosNetworkLabel(biosProfile)}`,
-    `Dial-up modem: ${getBiosModemLabel(biosProfile)}`,
-  ];
-
-  if (biosProfile.cpuMHz >= 66) {
-    lines.push("Warning: Overclock profile active. Keep your coffee nearby.");
-  }
-
-  if (biosProfile.cacheMode === "reckless") {
-    lines.push("L2 cache mode: Reckless Turbo");
-  }
-
-  lines.push(
-    shellProfile.bootCopy?.preludeLastLine || `Starting ${shellProfile.displayName}...`,
-  );
-
-  return lines;
-}
+const XP_BOOT_SCREEN_IMAGE_URL = new URL(
+  "../../visuals-to-use/winxp/logo/xp-boot-screen.png",
+  import.meta.url,
+).toString();
+const XP_BOOT_SOUND_URL = new URL(
+  "../../visuals-to-use/winxp/sounds/Windows XP Startup.wav",
+  import.meta.url,
+).toString();
+const XP_SHUTDOWN_SOUND_URL = new URL(
+  "../../visuals-to-use/winxp/sounds/Windows XP Shutdown.wav",
+  import.meta.url,
+).toString();
 
 function getBiosLineDelayMs(line) {
   if (!line) {
@@ -78,18 +63,6 @@ function getBiosLineDelayMs(line) {
   }
 
   return 110;
-}
-
-function getBootPreludeLineDelayMs(line) {
-  if (line.includes("Warning")) {
-    return 900;
-  }
-
-  if (line.startsWith("Starting")) {
-    return 700;
-  }
-
-  return 420;
 }
 
 function resolveBootProgressStatus(shellProfile, visiblePercent) {
@@ -120,6 +93,16 @@ function resolveBootProgressStatus(shellProfile, visiblePercent) {
   }
 
   return shellProfile.bootCopy?.finalStatusText || "Painting desktop and taskbar...";
+}
+
+function buildWin95BootPreludeLines(shellProfile, biosProfile) {
+  return [
+    "C:\\>HIMEM.SYS",
+    "C:\\>SMARTDRV.EXE /X",
+    `C:\\>NET START (${getBiosNetworkLabel(biosProfile)})`,
+    `C:\\>MODEMDRV /INIT (${getBiosModemLabel(biosProfile)})`,
+    shellProfile.bootCopy?.preludeLastLine || `Starting ${shellProfile.displayName}...`,
+  ];
 }
 
 function normalizeStoredDesktopPosition(candidate) {
@@ -457,8 +440,7 @@ export function createDesktopShell({
   const desktopIconPositionsStorageKey = getDesktopIconPositionsStorageKey(
     shellProfile.id,
   );
-  const bootScreenImageUrl = WIN95_BOOT_SCREEN_IMAGE_URL;
-  const bootSoundUrl = WIN95_BOOT_SOUND_URL;
+  const isWindowsXpProfile = shellProfile.id === "winxp-sp2";
   const shutdownVideoUrl = WIN95_SHUTDOWN_VIDEO_URL;
 
   const cleanupFns = [];
@@ -832,6 +814,7 @@ export function createDesktopShell({
         }
         document.removeEventListener("keydown", keydownHandler);
       });
+
       windowManager.setContainer(null);
       return;
     }
@@ -848,100 +831,120 @@ export function createDesktopShell({
     windowManager.setContainer(null);
   }
 
-  function renderBooting() {
-    root.className = "shell-root shell-root--state";
+  function renderWin95Booting() {
+    const totalBootDurationMs = Math.max(2600, pendingBootDurationMs);
+    const preludeDurationMs = Math.min(
+      Math.max(1500, Math.round(totalBootDurationMs * 0.38)),
+      Math.max(900, totalBootDurationMs - 1200),
+    );
+    const preludeLines = buildWin95BootPreludeLines(shellProfile, biosProfile);
+    const preludeInitialStatus =
+      shellProfile.bootCopy?.preludeInitialStatus || "Performing startup sequence...";
+    const preludeCompleteStatus =
+      shellProfile.bootCopy?.preludeCompleteStatus || "DOS phase complete.";
+    const bootStartTimestamp = Date.now();
+
     root.innerHTML = `
       <main class="boot95-screen" data-testid="booting-screen">
-        <section class="boot95-screen__prelude" data-boot-prelude>
-          <pre class="boot95-screen__log" data-boot-log></pre>
-          <p class="boot95-screen__status" data-boot-status>${shellProfile.bootCopy?.preludeInitialStatus || "Performing startup sequence..."}</p>
-        </section>
-        <section class="boot95-screen__asset" data-boot-asset hidden>
-          <img src="${bootScreenImageUrl}" class="boot95-screen__image" alt="${shellProfile.bootScreenAltText || `${shellProfile.displayName} startup screen`}" />
-          <div class="boot95-screen__bar"><span class="boot95-screen__bar-fill" data-boot-progress></span></div>
-          <p class="boot95-screen__final-status" data-boot-final-status>${shellProfile.bootCopy?.finalStatusText || `Starting ${shellProfile.displayName} shell...`}</p>
+        <section class="boot95-screen__prelude">
+          <pre class="boot95-screen__log" data-boot95-log></pre>
+          <p class="boot95-screen__status" data-boot95-status>${preludeInitialStatus}</p>
         </section>
       </main>
     `;
 
-    const preludeNode = root.querySelector("[data-boot-prelude]");
-    const logNode = root.querySelector("[data-boot-log]");
-    const statusNode = root.querySelector("[data-boot-status]");
-    const bootAssetNode = root.querySelector("[data-boot-asset]");
-    const progressNode = root.querySelector("[data-boot-progress]");
-    const finalStatusNode = root.querySelector("[data-boot-final-status]");
-    const bootLines = buildBootPreludeLines(biosProfile, shellProfile);
-    const lineDurationMs = Math.max(240, Math.floor((pendingBootDurationMs * 0.42) / bootLines.length));
-    const preludeExpectedDurationMs = lineDurationMs * bootLines.length;
-    const progressPhaseDurationMs = Math.max(2200, pendingBootDurationMs - preludeExpectedDurationMs);
-
-    let bootLineIndex = 0;
-    let preludeTimerId = null;
+    const preludeLogNode = root.querySelector("[data-boot95-log]");
+    const preludeStatusNode = root.querySelector("[data-boot95-status]");
+    const preludeLineIntervalMs = Math.max(
+      95,
+      Math.floor(preludeDurationMs / Math.max(1, preludeLines.length)),
+    );
+    let renderedPreludeLines = 0;
+    let preludeIntervalId = null;
+    let preludeTimeoutId = null;
     let progressIntervalId = null;
 
-    function startProgressPhase() {
-      preludeNode?.setAttribute("hidden", "hidden");
-      bootAssetNode?.removeAttribute("hidden");
-      const progressStartTimestamp = Date.now();
-
-      progressIntervalId = window.setInterval(() => {
-        if (!progressNode) {
-          return;
-        }
-
-        const elapsedMs = Date.now() - progressStartTimestamp;
-        const progressRatio = Math.min(1, elapsedMs / progressPhaseDurationMs);
-        const jitter = (Math.sin(elapsedMs / 260) + 1) * 1.2;
-        const visiblePercent = Math.min(97, Math.max(1, progressRatio * 100 - 1.8 + jitter));
-
-        progressNode.style.width = `${visiblePercent}%`;
-
-        if (!finalStatusNode) {
-          return;
-        }
-
-        finalStatusNode.textContent = resolveBootProgressStatus(
-          shellProfile,
-          visiblePercent,
-        );
-      }, 120);
-    }
-
-    function renderNextBootLine() {
-      if (bootLineIndex >= bootLines.length) {
-        if (statusNode) {
-          statusNode.textContent =
-            shellProfile.bootCopy?.preludeCompleteStatus || "DOS phase complete.";
-        }
-        startProgressPhase();
+    const renderPreludeProgress = () => {
+      if (!preludeLogNode) {
         return;
       }
 
-      const nextLine = bootLines[bootLineIndex];
-      if (logNode) {
-        logNode.textContent = logNode.textContent
-          ? `${logNode.textContent}\n${nextLine}`
+      while (renderedPreludeLines < preludeLines.length) {
+        const nextVisibleAtMs = preludeLineIntervalMs * (renderedPreludeLines + 1);
+
+        if (Date.now() - bootStartTimestamp < nextVisibleAtMs) {
+          break;
+        }
+
+        const nextLine = preludeLines[renderedPreludeLines];
+        preludeLogNode.textContent = preludeLogNode.textContent
+          ? `${preludeLogNode.textContent}\n${nextLine}`
           : nextLine;
+        renderedPreludeLines += 1;
       }
-      if (statusNode) {
-        statusNode.textContent = nextLine;
+
+      if (renderedPreludeLines >= preludeLines.length && preludeStatusNode) {
+        preludeStatusNode.textContent = preludeCompleteStatus;
       }
-      bootLineIndex += 1;
-      preludeTimerId = window.setTimeout(
-        renderNextBootLine,
-        Math.max(lineDurationMs, getBootPreludeLineDelayMs(nextLine)),
+    };
+
+    const startGraphicPhase = () => {
+      if (preludeIntervalId !== null) {
+        clearInterval(preludeIntervalId);
+        preludeIntervalId = null;
+      }
+
+      const initialVisiblePercent = Math.min(
+        99,
+        Math.max(1, (preludeDurationMs / totalBootDurationMs) * 100),
       );
-    }
+      const initialStatus = resolveBootProgressStatus(shellProfile, initialVisiblePercent);
+      const bootImageAltText =
+        shellProfile.bootScreenAltText || `${shellProfile.displayName} startup screen`;
 
-    renderNextBootLine();
+      root.innerHTML = `
+        <main class="boot95-screen" data-testid="booting-screen">
+          <section class="boot95-screen__asset">
+            <img src="${WIN95_BOOT_SCREEN_IMAGE_URL}" class="boot95-screen__image" alt="${bootImageAltText}" />
+            <div class="boot95-screen__bar"><span class="boot95-screen__bar-fill" data-boot-progress></span></div>
+            <p class="boot95-screen__final-status" data-boot-status>${initialStatus}</p>
+          </section>
+        </main>
+      `;
 
-    const bootAudio = new Audio(bootSoundUrl);
+      const statusNode = root.querySelector("[data-boot-status]");
+      const progressNode = root.querySelector("[data-boot-progress]");
+      progressIntervalId = window.setInterval(() => {
+        const elapsedMs = Date.now() - bootStartTimestamp;
+        const progressRatio = Math.min(1, elapsedMs / totalBootDurationMs);
+        const visiblePercent = Math.min(99, Math.max(1, progressRatio * 100));
+
+        if (progressNode) {
+          const jitter = (Math.sin(elapsedMs / 300) + 1) * 0.8;
+          progressNode.style.width = `${Math.min(98, visiblePercent + jitter)}%`;
+        }
+
+        if (statusNode) {
+          statusNode.textContent = resolveBootProgressStatus(shellProfile, visiblePercent);
+        }
+      }, 120);
+    };
+
+    renderPreludeProgress();
+    preludeIntervalId = window.setInterval(renderPreludeProgress, 80);
+    preludeTimeoutId = window.setTimeout(startGraphicPhase, preludeDurationMs);
+
+    const bootAudio = new Audio(WIN95_BOOT_SOUND_URL);
     bootAudio.volume = 0.86;
     void bootAudio.play().catch(() => {});
 
     cleanupFns.push(() => {
-      if (preludeTimerId !== null) {
-        clearTimeout(preludeTimerId);
+      if (preludeIntervalId !== null) {
+        clearInterval(preludeIntervalId);
+      }
+
+      if (preludeTimeoutId !== null) {
+        clearTimeout(preludeTimeoutId);
       }
 
       if (progressIntervalId !== null) {
@@ -955,15 +958,111 @@ export function createDesktopShell({
     windowManager.setContainer(null);
   }
 
+  function renderXpBooting() {
+    const totalBootDurationMs = Math.max(2600, pendingBootDurationMs);
+    const bootStatusText =
+      shellProfile.bootCopy?.finalStatusText ||
+      `Starting ${shellProfile.displayName} shell...`;
+    const bootImageAltText =
+      shellProfile.bootScreenAltText || `${shellProfile.displayName} startup screen`;
+
+    root.innerHTML = `
+      <main class="bootxp-screen" data-testid="booting-screen">
+        <div class="bootxp-screen__visual">
+          <img src="${XP_BOOT_SCREEN_IMAGE_URL}" class="bootxp-screen__image" alt="${bootImageAltText}" />
+          <div aria-hidden="true" class="bootxp-screen__loader">
+            <span
+              class="bootxp-screen__loader-fill"
+              data-boot-progress
+            ></span>
+          </div>
+        </div>
+        <p class="bootxp-screen__status" data-boot-status>${bootStatusText}</p>
+      </main>
+    `;
+
+    const statusNode = root.querySelector("[data-boot-status]");
+    const progressNode = root.querySelector("[data-boot-progress]");
+    const bootStartTimestamp = Date.now();
+    const progressIntervalId = window.setInterval(() => {
+      const elapsedMs = Date.now() - bootStartTimestamp;
+      const progressRatio = Math.min(1, elapsedMs / totalBootDurationMs);
+      const visiblePercent = Math.min(99, Math.max(1, progressRatio * 100));
+
+      if (progressNode) {
+        const cycleDurationMs = 1200;
+        const cycleRatio = (elapsedMs % cycleDurationMs) / cycleDurationMs;
+        const travelPercent = -32 + cycleRatio * 164;
+        progressNode.style.left = `${travelPercent}%`;
+      }
+
+      if (statusNode) {
+        statusNode.textContent = resolveBootProgressStatus(shellProfile, visiblePercent);
+      }
+    }, 80);
+
+    const bootAudio = new Audio(XP_BOOT_SOUND_URL);
+    bootAudio.volume = 0.92;
+    void bootAudio.play().catch(() => {});
+
+    cleanupFns.push(() => {
+      clearInterval(progressIntervalId);
+      bootAudio.pause();
+      bootAudio.src = "";
+    });
+
+    windowManager.setContainer(null);
+  }
+
+  function renderBooting() {
+    root.className = "shell-root shell-root--state";
+
+    if (isWindowsXpProfile) {
+      renderXpBooting();
+      return;
+    }
+
+    renderWin95Booting();
+  }
+
   function renderShutdown(state) {
     root.className = "shell-root shell-root--state";
 
     if (state === OS_STATES.SHUTDOWN_INIT) {
+      if (isWindowsXpProfile) {
+        root.innerHTML = `
+          <main class="shutdownxp-screen" data-testid="shutdown-screen">
+            <p class="shutdownxp-screen__text">${shellProfile.shutdownCopy?.shutdownInitText || "Windows is shutting down..."}</p>
+          </main>
+        `;
+        windowManager.setContainer(null);
+        return;
+      }
+
       root.innerHTML = `
         <main class="shutdown95-screen" data-testid="shutdown-screen">
           <p class="shutdown95-screen__text">${shellProfile.shutdownCopy?.shutdownInitText || "Windows is shutting down..."}</p>
         </main>
       `;
+      windowManager.setContainer(null);
+      return;
+    }
+
+    if (isWindowsXpProfile) {
+      root.innerHTML = `
+        <main class="shutdownxp-screen shutdownxp-screen--final" data-testid="shutdown-screen">
+          <p class="shutdownxp-screen__text">Saving your settings...</p>
+        </main>
+      `;
+
+      const shutdownAudio = new Audio(XP_SHUTDOWN_SOUND_URL);
+      shutdownAudio.volume = 0.86;
+      void shutdownAudio.play().catch(() => {});
+      cleanupFns.push(() => {
+        shutdownAudio.pause();
+        shutdownAudio.src = "";
+      });
+
       windowManager.setContainer(null);
       return;
     }
@@ -1002,6 +1101,7 @@ export function createDesktopShell({
         iconKey: iconDefinition.iconKey || "settings",
         iconUrl: iconDefinition.iconUrl,
         systemTargetId: iconDefinition.targetDesktopId,
+        runPrefillCommand: iconDefinition.runPrefillCommand,
       }),
     );
     const startMenuRailLabel = shellProfile.startMenuRailLabel || "Windows";
@@ -1046,6 +1146,20 @@ export function createDesktopShell({
     });
     cleanupFns.push(() => contextMenu.destroy());
 
+    function openRunDialogWithCommand(prefillCommand) {
+      if (typeof prefillCommand !== "string" || !prefillCommand.trim()) {
+        return;
+      }
+
+      eventBus.emit("shell:app-launch-requested", {
+        appId: "run-dialog",
+        launchPayload: {
+          prefillCommand,
+          sourceDesktopProfileId: shellProfile.id,
+        },
+      });
+    }
+
     const desktopIconSurface = createIconSurface({
       container: iconContainer,
       items: [
@@ -1065,6 +1179,11 @@ export function createDesktopShell({
         persistDesktopIconPositions(desktopIconPositionsStorageKey, nextPositions);
       },
       onActivate: (item) => {
+        if (item.runPrefillCommand) {
+          openRunDialogWithCommand(item.runPrefillCommand);
+          return;
+        }
+
         if (item.systemTargetId) {
           eventBus.emit("shell:system-switch-requested", {
             targetSystemId: item.systemTargetId,
@@ -1123,6 +1242,11 @@ export function createDesktopShell({
             ],
             onSelect(entry) {
               if (entry.action === "open") {
+                if (details.item.runPrefillCommand) {
+                  openRunDialogWithCommand(details.item.runPrefillCommand);
+                  return;
+                }
+
                 if (details.item.systemTargetId) {
                   eventBus.emit("shell:system-switch-requested", {
                     targetSystemId: details.item.systemTargetId,
@@ -1589,6 +1713,9 @@ export function createDesktopShell({
 
   return {
     render,
+    requestPowerOn() {
+      requestBoot();
+    },
     unmount,
   };
 }

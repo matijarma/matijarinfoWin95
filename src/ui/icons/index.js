@@ -7,6 +7,7 @@ const ICON_FILE_MAP = Object.freeze({
   folder: "w95_4.ico",
   run: "w95_67.ico",
   settings: "w95_61.ico",
+  task_manager: "w95_58.ico",
   document: "w95_60.ico",
   network: "w95_53.ico",
   volume: "w95_35.ico",
@@ -33,11 +34,46 @@ function getIconUrl(iconKey) {
   ).toString();
 }
 
-export function createIconGlyph(iconKey = "app", { compact = false } = {}) {
+function resolveIconSource(iconKey, iconUrl) {
+  if (typeof iconUrl === "string" && iconUrl.trim()) {
+    return {
+      key: "custom",
+      src: iconUrl.trim(),
+      fallback: getIconUrl("internet_explorer"),
+    };
+  }
+
+  if (typeof iconKey === "string") {
+    const trimmed = iconKey.trim();
+
+    if (
+      trimmed &&
+      (trimmed.startsWith("http://") ||
+        trimmed.startsWith("https://") ||
+        trimmed.startsWith("data:") ||
+        trimmed.startsWith("/"))
+    ) {
+      return {
+        key: "custom",
+        src: trimmed,
+        fallback: getIconUrl("internet_explorer"),
+      };
+    }
+  }
+
   const normalizedIconKey = resolveIconKey(iconKey);
+  return {
+    key: normalizedIconKey,
+    src: getIconUrl(normalizedIconKey),
+    fallback: getIconUrl("app"),
+  };
+}
+
+export function createIconGlyph(iconKey = "app", { compact = false, iconUrl } = {}) {
+  const iconSource = resolveIconSource(iconKey, iconUrl);
   const glyph = document.createElement("span");
   glyph.className = "win-icon__glyph";
-  glyph.dataset.icon = normalizedIconKey;
+  glyph.dataset.icon = iconSource.key;
   glyph.setAttribute("aria-hidden", "true");
 
   if (compact) {
@@ -46,9 +82,20 @@ export function createIconGlyph(iconKey = "app", { compact = false } = {}) {
 
   const image = document.createElement("img");
   image.className = "win-icon__image";
-  image.src = getIconUrl(normalizedIconKey);
+  image.src = iconSource.src;
   image.alt = "";
   image.draggable = false;
+  image.addEventListener(
+    "error",
+    () => {
+      if (image.src === iconSource.fallback) {
+        return;
+      }
+
+      image.src = iconSource.fallback;
+    },
+    { once: true },
+  );
 
   glyph.append(image);
 

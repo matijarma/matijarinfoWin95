@@ -29,7 +29,7 @@ function buildMenu(entries, { onSelect }) {
       button.disabled = true;
     }
 
-    button.append(createIconGlyph(entry.iconKey, { compact: true }));
+    button.append(createIconGlyph(entry.iconKey, { compact: true, iconUrl: entry.iconUrl }));
 
     const label = document.createElement("span");
     label.className = "context-menu__label";

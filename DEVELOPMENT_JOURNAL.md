@@ -273,3 +273,134 @@ This file is append-only and serves as the running log for project progress.
 - Next steps:
   - Run manual browser QA for BIOS setup flows, boot pacing, start menu spacing, and clock interaction paths.
   - Fine-tune timezone map hitbox widths and marker placement after visual QA on multiple viewport sizes.
+
+## 2026-03-25 02:51 (CET)
+- Summary: Added a full Task Manager system app replica with live runtime integration and control actions.
+- Changes made:
+  - Added new app module `src/apps/task-manager.js` with Win95-style menu bar, tabs (`Applications`, `Processes`, `Performance`), live counters/history graphs, and periodic sampling.
+  - Implemented live task/process controls:
+    - `Switch To`, `End Task`, `End Process`, and `New Task...` action flows.
+    - Menu actions for refresh/update-speed toggles and runtime options.
+    - Automatic updates on window lifecycle events (`opened`, `closed`, `focused`, `minimized`, etc.).
+  - Registered `task-manager` in app manifests as a single-instance system app and wired Run commands (`taskmgr`, `taskman`, `task manager`).
+  - Integrated launch paths:
+    - Start menu `Programs > Accessories > System Tools > Task Manager`.
+    - Desktop shortcut `Ctrl+Shift+Escape`.
+  - Extended app runtime context by passing `windowManager` and `appRegistry` into app `createContent` payloads via `core/app-registry`.
+  - Added dedicated icon token `task_manager` mapped to original icon asset `w95_58.ico`.
+  - Added full Task Manager styling block in `src/styles/main.css` and included its controls in Win95 button treatment selectors.
+  - Ran syntax checks across all JS modules (`node --check` for every `src/**/*.js`).
+- Decisions:
+  - Built Task Manager as a system-level app (hidden manifest + explicit launch vectors) to mirror legacy UX entry points.
+  - Used simulated-but-live metrics based on actual open windows and focus state to keep behavior believable while preserving current runtime architecture.
+- Risks / blockers:
+  - Some legacy options (e.g. exact "Always on Top" z-order semantics) are approximated due current window-manager constraints.
+  - No browser automation pass was executed for this iteration; validation is syntax/static plus runtime wiring review.
+- Next steps:
+  - Add optional process-column toggles and sorting for deeper parity.
+  - Add window-manager support for true top-most windows to complete `Always on Top` fidelity.
+  - Add smoke tests for Task Manager launch paths and action flows.
+
+## 2026-03-25 03:46 (CET)
+- Summary: Replaced the mobile placeholder with a full SymbianOS-inspired runtime experience and dedicated visual system.
+- Changes made:
+  - Rebuilt `src/mobile-symbian/index.js` into a complete runtime controller with:
+    - boot phase sequencing and progress output,
+    - standby/home/menu/app navigation state,
+    - history stack + back behavior,
+    - softkey model (`left/center/right`) and keyboard mappings (`F1/F2/F3`, arrows, enter, escape, keypad shortcuts),
+    - clickable on-screen navpad/utility keys,
+    - rotating signal/operator/battery status bar updates,
+    - toast/dialog feedback flows.
+  - Integrated detailed app surfaces and state flows for Contacts, Messaging, Calendar, Gallery, Music, Browser, File Manager, Notes, Settings, Extras, Profiles, and Call Log using new render/data modules.
+  - Added and integrated new Symbian modules:
+    - `src/mobile-symbian/apps.js` (pure render helpers for all mobile screens/apps),
+    - `src/mobile-symbian/data.js` (seed datasets + helpers for contacts/messages/events/media/files/settings/profiles/status).
+  - Added `src/styles/symbian.css` and expanded it with compatibility styling for all `symbian-*` classes emitted by the render layer (lists, tabs, status messages, standby blocks, app panes, calendar grid, boot screen, etc.).
+  - Wired stylesheet loading in `index.html` so Symbian visuals are available during mobile runtime mount.
+  - Ran syntax validation successfully for all JS modules (`node --check` across every `src/**/*.js`).
+- Decisions:
+  - Keep Symbian implementation isolated to the mobile branch while preserving the existing desktop runtime path.
+  - Use data-driven app renderers + a stateful controller to keep future feature additions (new apps/screens/actions) straightforward.
+- Risks / blockers:
+  - No browser interaction smoke suite was run in this pass; validation is syntax-level plus runtime code review.
+  - Fidelity is behavior-first and stylistically close to S60-era devices, but not a 1:1 asset-perfect hardware recreation.
+- Next steps:
+  - Add mobile interaction smoke tests (softkeys, app routing, back stack, file navigation).
+  - Add richer in-app edit flows (compose message, edit note, settings persistence) for deeper simulation parity.
+
+## 2026-03-25 03:47 (CET)
+- Summary: Added deterministic runtime override flags for desktop/mobile branch preview.
+- Changes made:
+  - Updated `src/core/utils/input.js` to support URL overrides:
+    - `?mobile=1` (or `?mode=mobile`) forces Symbian/mobile runtime.
+    - `?desktop=1` (or `?mode=desktop`) forces desktop Win95 runtime.
+  - Preserved existing heuristic routing as default when no override is provided.
+- Decisions:
+  - Keep override mechanism query-param-based for zero-state, no-storage debugging.
+- Risks / blockers:
+  - None observed; behavior remains backward-compatible without query flags.
+- Next steps:
+  - Add quick QA note documenting override usage for manual testing flows.
+
+## 2026-03-25 04:49 (CET)
+- Summary: Archived current Symbian mobile build as `v1995` and rebuilt active mobile runtime as Sony Ericsson P1i-style Symbian 9.1 UIQ 3.0 experience.
+- Changes made:
+  - Preserved previous mobile implementation as a versioned snapshot under `src/mobile-variants/v1995-s60/`:
+    - copied runtime (`index.js`), render helpers (`apps.js`), seed data (`data.js`), and stylesheet (`symbian.css`).
+  - Added mobile variant routing in `src/entry-mobile.js`:
+    - default mobile runtime now points to UIQ/P1i build,
+    - archived runtime remains loadable via query aliases (e.g. `?mobileVariant=v1995`, `?mobileVariant=s60`, `?mobileVariant=legacy`).
+  - Replaced active `src/mobile-symbian/index.js` with a new UIQ-focused controller:
+    - boot sequencing and skip behavior,
+    - Today/home screen, launcher pages, app routing, app back-stack,
+    - softkey + keyboard + navpad interactions,
+    - dialog/toast system,
+    - status bar updates (operator/signal/battery/time),
+    - app flows for Phone/Calls, Messages, Contacts, Calendar/Tasks/Organizer, Media, Camera, Browser, File Manager, Notes, Control Panel/Connections, Profiles, RSS, Clock, Calculator, Converter, Recorder, and Help.
+  - Integrated new UIQ modules:
+    - `src/mobile-symbian/uiq-data.js` (UIQ datasets + helpers),
+    - `src/mobile-symbian/uiq-views.js` (pure HTML view renderers).
+  - Added `src/styles/uiq-p1i.css` and expanded it with compatibility classes matching all `uiq-*` hooks emitted by the view layer.
+  - Updated `index.html` to load UIQ stylesheet globally.
+  - Ran syntax validation across all JS files (`node --check` over every `src/**/*.js`).
+- Decisions:
+  - Keep both mobile generations available: UIQ/P1i as default and v1995 S60 archived behind explicit variant query flag.
+  - Keep UIQ view/data/controller split to enable future UIQ-specific app expansion without monolithic edits.
+- Risks / blockers:
+  - No browser automation pass was run for this UIQ migration; validation is syntax-level + integration checks.
+- Next steps:
+  - Add UIQ-specific smoke tests for launcher page switching, app routing, and softkey/back-stack behavior.
+  - Add persistence for active profile/settings edits and recorder/media additions across reloads.
+
+## 2026-03-25 05:12 (CET)
+- Summary: Fixed UIQ null-toast runtime crash and set the uploaded profile image as global favicon.
+- Changes made:
+  - Patched `src/mobile-symbian/uiq-views.js` to guard `renderToast` and `renderStatusBanner` against `null`/non-object payloads before destructuring.
+  - Added favicon links in `index.html` pointing to `mr-icon.png` (`icon`, `shortcut icon`, `apple-touch-icon`) so all runtime variants share the same tab icon.
+- Decisions:
+  - Keep `mr-icon.png` as the canonical favicon asset to match user-provided branding.
+  - Use defensive object normalization in UIQ view helpers to prevent transient state from crashing renders.
+- Risks / blockers:
+  - Browser may cache favicon and old JS aggressively; hard reload may be needed to observe updates immediately.
+- Next steps:
+  - Run a browser-level smoke pass for UIQ route rendering (`?mobile=1&mobileVariant=uiq-p1i`) and legacy variant switching.
+
+## 2026-03-25 05:34 (CET)
+- Summary: Corrected UIQ direction to a 2006-era Sony Ericsson P1i look and isolated mobile variant styling.
+- Changes made:
+  - Reworked `src/styles/uiq-p1i.css` to a compact UIQ 3.0 visual language (240x320-class display geometry, thin status/title bars, classic CBA strip, tighter list/menu density, blue gradient selection states, period-like launcher and dialog surfaces).
+  - Updated `src/mobile-symbian/uiq-views.js` markup semantics for compact/classic list/menu structures while preserving all existing render contracts and interaction hooks.
+  - Refactored `src/mobile-symbian/index.js` hardware footer markup to class-based compact nav controls and decorative P1i-style keyboard deck (removed inline styling from markup).
+  - Added mobile stylesheet runtime selection in `src/entry-mobile.js` so:
+    - UIQ variant loads `src/styles/uiq-p1i.css`.
+    - legacy `v1995` variant loads `src/mobile-variants/v1995-s60/symbian.css`.
+  - Removed global mobile stylesheet links from `index.html` to prevent desktop and cross-variant style bleed.
+- Decisions:
+  - Keep legacy S60 styling archived and loaded only when explicitly selected via variant flag.
+  - Use class-only hardware styling for maintainability and fast visual iteration.
+- Risks / blockers:
+  - Visual fidelity remains approximation-based without original UIQ sprite assets/fonts; browser/device rendering still varies.
+  - No browser screenshot automation run in this pass; validation is syntax/static-level.
+- Next steps:
+  - Run browser-level QA with forced URL variants to validate perceived fidelity and tune spacing/iconography further.

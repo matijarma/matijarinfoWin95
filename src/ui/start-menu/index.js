@@ -88,7 +88,7 @@ export function createStartMenu({ root, entries, onSelect, onVisibilityChange } 
         button.disabled = true;
       }
 
-      button.append(createIconGlyph(entry.iconKey, { compact: true }));
+      button.append(createIconGlyph(entry.iconKey, { compact: true, iconUrl: entry.iconUrl }));
       const { node: labelNode, parsed: parsedLabel } = createMnemonicLabelNode(
         entry.label,
         "win95-menu__label",

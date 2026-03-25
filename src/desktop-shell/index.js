@@ -156,7 +156,7 @@ function persistDesktopIconPositions(positionsById) {
 
 function createStartMenuEntries(appRegistry) {
   const findApp = (appId) => appRegistry.getApp(appId);
-  const createAppEntry = (appId, { label, iconKey } = {}) => {
+  const createAppEntry = (appId, { id, label, iconKey, iconUrl, launchPayload } = {}) => {
     const app = findApp(appId);
 
     if (!app) {
@@ -165,12 +165,53 @@ function createStartMenuEntries(appRegistry) {
 
     return {
       type: "app",
-      id: `start-${appId}`,
+      id: id || `start-${appId}`,
       appId,
       label: label || app.title,
       iconKey: iconKey || app.iconKey,
+      iconUrl: iconUrl || app.iconUrl,
+      launchPayload,
     };
   };
+  const createDisabledEntry = (id, label, iconKey = "document") => ({
+    type: "item",
+    id,
+    label,
+    iconKey,
+    disabled: true,
+  });
+  const webAppsBySubmenu = new Map();
+
+  for (const app of appRegistry.listApps({ placement: "start" })) {
+    if (app.startGroup !== "web-apps") {
+      continue;
+    }
+
+    const submenuLabel =
+      typeof app.startSubmenu === "string" && app.startSubmenu.trim()
+        ? app.startSubmenu.trim()
+        : "Web Apps";
+
+    if (!webAppsBySubmenu.has(submenuLabel)) {
+      webAppsBySubmenu.set(submenuLabel, []);
+    }
+
+    webAppsBySubmenu.get(submenuLabel).push(app);
+  }
+
+  const webAppsStartEntries = Array.from(webAppsBySubmenu.entries())
+    .sort(([leftLabel], [rightLabel]) => leftLabel.localeCompare(rightLabel))
+    .map(([submenuLabel, apps], index) => ({
+      type: "submenu",
+      id: `start-programs-web-apps-${index + 1}`,
+      label: submenuLabel,
+      iconKey: "internet_explorer",
+      children: apps
+        .sort((leftApp, rightApp) => leftApp.title.localeCompare(rightApp.title))
+        .map((app) => createAppEntry(app.id))
+        .filter(Boolean),
+    }))
+    .filter((entry) => entry.children.length > 0);
 
   return [
     {
@@ -179,11 +220,69 @@ function createStartMenuEntries(appRegistry) {
       label: "&Programs",
       iconKey: "folder",
       children: [
-        createAppEntry("my-computer"),
+        {
+          type: "submenu",
+          id: "start-programs-accessories",
+          label: "&Accessories",
+          iconKey: "folder",
+          children: [
+            createDisabledEntry("acc-calculator", "&Calculator"),
+            createDisabledEntry("acc-imaging", "&Imaging"),
+            createDisabledEntry("acc-notepad", "&Notepad"),
+            createDisabledEntry("acc-paint", "Pa&int"),
+            createDisabledEntry("acc-wordpad", "&WordPad"),
+            {
+              type: "submenu",
+              id: "acc-system-tools",
+              label: "&System Tools",
+              iconKey: "folder",
+              children: [
+                createDisabledEntry("sys-disk-cleanup", "Disk &Cleanup", "settings"),
+                createDisabledEntry("sys-scandisk", "&ScanDisk", "settings"),
+                createDisabledEntry("sys-defrag", "Disk &Defragmenter", "settings"),
+                createAppEntry("task-manager", {
+                  id: "sys-task-manager",
+                  label: "Task &Manager",
+                  iconKey: "task_manager",
+                }),
+                createDisabledEntry("sys-system-info", "System &Information", "settings"),
+              ],
+            },
+          ],
+        },
+        {
+          type: "submenu",
+          id: "start-programs-online",
+          label: "&Online Services",
+          iconKey: "folder",
+          children: [
+            createDisabledEntry("online-aol", "America On&line", "modem"),
+            createDisabledEntry("online-compuserve", "&CompuServe", "modem"),
+            createDisabledEntry("online-prodigy", "&Prodigy", "modem"),
+          ],
+        },
+        ...webAppsStartEntries,
         createAppEntry("internet-explorer"),
+        createAppEntry("network-status", {
+          id: "start-programs-dialup",
+          label: "Dial-&Up Networking",
+          iconKey: "modem",
+          launchPayload: { focus: "modem" },
+        }),
         createAppEntry("about-matijar", {
-          label: "Portfolio Notebook",
+          id: "start-programs-portfolio",
+          label: "Portfolio &Notebook",
           iconKey: "document",
+        }),
+        { type: "separator" },
+        createAppEntry("my-computer", {
+          id: "start-programs-explorer",
+          label: "Windows E&xplorer",
+          iconKey: "folder",
+        }),
+        createAppEntry("my-computer", {
+          id: "start-programs-my-computer",
+          label: "My &Computer",
         }),
         createAppEntry("recycle-bin"),
       ].filter(Boolean),
@@ -208,9 +307,20 @@ function createStartMenuEntries(appRegistry) {
       id: "start-settings",
       label: "&Settings",
       iconKey: "settings",
-      children: [createAppEntry("control-panel"), createAppEntry("date-time-properties")].filter(
-        Boolean,
-      ),
+      children: [
+        createAppEntry("control-panel"),
+        createAppEntry("network-status", {
+          id: "start-settings-network",
+          label: "&Network",
+        }),
+        createAppEntry("date-time-properties", {
+          id: "start-settings-clock",
+          label: "Date/&Time",
+        }),
+        createDisabledEntry("start-settings-printers", "&Printers", "folder"),
+        createDisabledEntry("start-settings-taskbar", "&Taskbar", "settings"),
+        createDisabledEntry("start-settings-folder-options", "&Folder Options", "folder"),
+      ].filter(Boolean),
     },
     {
       type: "submenu",
@@ -891,6 +1001,7 @@ export function createDesktopShell({ root, eventBus, appRegistry, windowManager 
         appId: app.id,
         label: app.title,
         iconKey: app.iconKey,
+        iconUrl: app.iconUrl,
       })),
       ariaLabel: "Desktop icons",
       draggable: true,
@@ -913,6 +1024,7 @@ export function createDesktopShell({ root, eventBus, appRegistry, windowManager 
                 id: `desktop-open-${details.item.id}`,
                 label: "Open",
                 iconKey: details.item.iconKey,
+                iconUrl: details.item.iconUrl,
                 action: "open",
               },
               { type: "separator" },
@@ -1016,7 +1128,10 @@ export function createDesktopShell({ root, eventBus, appRegistry, windowManager 
       },
       onSelect(entry) {
         if (entry.type === "app" && entry.appId) {
-          eventBus.emit("shell:app-launch-requested", { appId: entry.appId });
+          eventBus.emit("shell:app-launch-requested", {
+            appId: entry.appId,
+            launchPayload: entry.launchPayload,
+          });
           return;
         }
 
@@ -1076,21 +1191,21 @@ export function createDesktopShell({ root, eventBus, appRegistry, windowManager 
       items: [
         {
           id: "tray-volume",
-          label: "Volume Control",
+          label: "Multimedia Control Panel",
           iconKey: "volume",
           command: "open-control-panel",
         },
         {
           id: "tray-network",
-          label: `Network Adapter: ${getBiosNetworkLabel(biosProfile)}`,
+          label: `Ethernet Adapter: ${getBiosNetworkLabel(biosProfile)}`,
           iconKey: "network",
-          command: "open-browser",
+          command: "open-network-status",
         },
         {
           id: "tray-modem",
           label: `Dial-Up Modem: ${getBiosModemLabel(biosProfile)}`,
           iconKey: "modem",
-          command: "open-datetime",
+          command: "open-network-modem",
         },
       ],
       onSelect(item) {
@@ -1098,15 +1213,18 @@ export function createDesktopShell({ root, eventBus, appRegistry, windowManager 
           eventBus.emit("shell:app-launch-requested", { appId: "control-panel" });
         }
 
-        if (item.command === "open-browser") {
+        if (item.command === "open-network-status") {
           eventBus.emit("shell:app-launch-requested", {
-            appId: "internet-explorer",
+            appId: "network-status",
           });
         }
 
-        if (item.command === "open-datetime") {
+        if (item.command === "open-network-modem") {
           eventBus.emit("shell:app-launch-requested", {
-            appId: "date-time-properties",
+            appId: "network-status",
+            launchPayload: {
+              focus: "modem",
+            },
           });
         }
       },
@@ -1225,7 +1343,12 @@ export function createDesktopShell({ root, eventBus, appRegistry, windowManager 
         taskButton.dataset.windowId = windowRecord.id;
 
         const appManifest = appRegistry.getApp(windowRecord.appId);
-        taskButton.append(createIconGlyph(appManifest?.iconKey, { compact: true }));
+        taskButton.append(
+          createIconGlyph(appManifest?.iconKey, {
+            compact: true,
+            iconUrl: appManifest?.iconUrl,
+          }),
+        );
 
         const labelNode = document.createElement("span");
         labelNode.className = "taskbar__window-label";
@@ -1339,6 +1462,12 @@ export function createDesktopShell({ root, eventBus, appRegistry, windowManager 
         if (activeWindowId) {
           windowManager.closeWindow(activeWindowId);
         }
+        return;
+      }
+
+      if (event.ctrlKey && event.shiftKey && event.key === "Escape") {
+        event.preventDefault();
+        eventBus.emit("shell:app-launch-requested", { appId: "task-manager" });
         return;
       }
 

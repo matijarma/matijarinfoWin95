@@ -11,5 +11,8 @@ if (!root) {
 if (isProbablyMobile()) {
   mountMobileRuntime(root);
 } else {
-  mountDesktopRuntime(root);
+  void mountDesktopRuntime(root).catch((error) => {
+    console.error("Failed to mount desktop runtime.", error);
+    root.textContent = "Desktop runtime failed to initialize.";
+  });
 }

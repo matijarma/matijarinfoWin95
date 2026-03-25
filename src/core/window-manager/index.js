@@ -5,9 +5,93 @@ const WINDOW_CASCADE_OFFSET = 24;
 const MAX_CASCADE_STEPS = 7;
 const DEFAULT_MIN_WIDTH = 280;
 const DEFAULT_MIN_HEIGHT = 200;
+const INFO_PANEL_DEFAULT_WIDTH = 270;
+const INFO_PANEL_MIN_HEIGHT = 180;
+const INFO_PANEL_GAP = 6;
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
+}
+
+function normalizeInfoPanelConfig(infoPanelConfig) {
+  if (!infoPanelConfig || typeof infoPanelConfig !== "object") {
+    return null;
+  }
+
+  const heading =
+    typeof infoPanelConfig.heading === "string" && infoPanelConfig.heading.trim()
+      ? infoPanelConfig.heading.trim()
+      : "Application Info";
+  const description =
+    typeof infoPanelConfig.description === "string"
+      ? infoPanelConfig.description.trim()
+      : "";
+  const meta = Array.isArray(infoPanelConfig.meta)
+    ? infoPanelConfig.meta
+        .map((item, index) => {
+          if (!item || typeof item !== "object") {
+            return null;
+          }
+
+          const label =
+            typeof item.label === "string" && item.label.trim()
+              ? item.label.trim()
+              : `Field ${index + 1}`;
+          const value =
+            typeof item.value === "string" && item.value.trim()
+              ? item.value.trim()
+              : "";
+
+          if (!value) {
+            return null;
+          }
+
+          return { label, value };
+        })
+        .filter(Boolean)
+    : [];
+  const actions = Array.isArray(infoPanelConfig.actions)
+    ? infoPanelConfig.actions
+        .map((item, index) => {
+          if (!item || typeof item !== "object") {
+            return null;
+          }
+
+          const label =
+            typeof item.label === "string" && item.label.trim()
+              ? item.label.trim()
+              : null;
+
+          if (!label) {
+            return null;
+          }
+
+          return {
+            id:
+              typeof item.id === "string" && item.id.trim()
+                ? item.id.trim()
+                : `info-action-${index + 1}`,
+            label,
+            action:
+              typeof item.action === "string" && item.action.trim()
+                ? item.action.trim()
+                : "",
+            url:
+              typeof item.url === "string" && item.url.trim()
+                ? item.url.trim()
+                : "",
+            onClick: typeof item.onClick === "function" ? item.onClick : null,
+          };
+        })
+        .filter(Boolean)
+    : [];
+
+  return {
+    heading,
+    description,
+    meta,
+    actions,
+  };
 }
 
 export function createWindowManager({ eventBus, container = null } = {}) {
@@ -76,11 +160,212 @@ export function createWindowManager({ eventBus, container = null } = {}) {
     };
   }
 
+  function ensureInfoPanelElement(record) {
+    if (!record?.infoPanel || !activeContainer) {
+      return null;
+    }
+
+    if (record.infoPanelElement) {
+      if (record.infoPanelElement.parentElement !== activeContainer) {
+        activeContainer.append(record.infoPanelElement);
+      }
+
+      return record.infoPanelElement;
+    }
+
+    const panel = document.createElement("aside");
+    panel.className = "os-window-info-panel";
+    panel.dataset.windowId = record.id;
+    panel.hidden = true;
+
+    const header = document.createElement("header");
+    header.className = "os-window-info-panel__header";
+
+    const heading = document.createElement("h3");
+    heading.className = "os-window-info-panel__title";
+    heading.textContent = record.infoPanel.heading;
+    header.append(heading);
+
+    const body = document.createElement("div");
+    body.className = "os-window-info-panel__body";
+
+    if (record.infoPanel.description) {
+      const description = document.createElement("p");
+      description.className = "os-window-info-panel__description";
+      description.textContent = record.infoPanel.description;
+      body.append(description);
+    }
+
+    if (record.infoPanel.meta.length > 0) {
+      const metaList = document.createElement("dl");
+      metaList.className = "os-window-info-panel__meta";
+
+      for (const item of record.infoPanel.meta) {
+        const term = document.createElement("dt");
+        term.textContent = item.label;
+
+        const value = document.createElement("dd");
+        value.textContent = item.value;
+
+        metaList.append(term, value);
+      }
+
+      body.append(metaList);
+    }
+
+    const actionCleanupFns = [];
+
+    if (record.infoPanel.actions.length > 0) {
+      const actions = document.createElement("div");
+      actions.className = "os-window-info-panel__actions";
+
+      for (const action of record.infoPanel.actions) {
+        const actionButton = document.createElement("button");
+        actionButton.type = "button";
+        actionButton.className = "os-window-info-panel__button";
+        actionButton.dataset.actionId = action.id;
+        actionButton.textContent = action.label;
+
+        const actionHandler = (event) => {
+          event.stopPropagation();
+
+          if (typeof action.onClick === "function") {
+            action.onClick({
+              windowId: record.id,
+              appId: record.appId,
+              action,
+            });
+          }
+
+          if (action.action === "open-url" && action.url) {
+            window.open(action.url, "_blank", "noopener,noreferrer");
+          }
+        };
+
+        actionButton.addEventListener("click", actionHandler);
+        actionCleanupFns.push(() => actionButton.removeEventListener("click", actionHandler));
+        actions.append(actionButton);
+      }
+
+      body.append(actions);
+    }
+
+    panel.append(header, body);
+
+    const panelPointerHandler = () => {
+      focusWindow(record.id);
+    };
+
+    panel.addEventListener("pointerdown", panelPointerHandler);
+    activeContainer.append(panel);
+
+    record.infoPanelElement = panel;
+    record.disposeInfoPanel = () => {
+      panel.removeEventListener("pointerdown", panelPointerHandler);
+
+      while (actionCleanupFns.length > 0) {
+        const cleanup = actionCleanupFns.pop();
+        cleanup?.();
+      }
+
+      panel.remove();
+      record.infoPanelElement = null;
+    };
+
+    return panel;
+  }
+
+  function syncInfoPanelPosition(record) {
+    if (!record?.infoPanel) {
+      return;
+    }
+
+    const panel = ensureInfoPanelElement(record);
+
+    if (!panel) {
+      return;
+    }
+
+    if (!record.infoPanelVisible || record.minimized) {
+      panel.hidden = true;
+      return;
+    }
+
+    const bounds = getContainerBounds();
+    const panelWidth = Math.min(
+      INFO_PANEL_DEFAULT_WIDTH,
+      Math.max(220, Math.round(bounds.width * 0.36)),
+    );
+    const panelHeight = Math.min(
+      Math.max(INFO_PANEL_MIN_HEIGHT, record.element.offsetHeight),
+      Math.max(INFO_PANEL_MIN_HEIGHT, bounds.height),
+    );
+    const preferredLeft = record.element.offsetLeft + record.element.offsetWidth + INFO_PANEL_GAP;
+    const hasRoomOnRight = preferredLeft + panelWidth <= bounds.width;
+    const canDockLeft = record.element.offsetLeft >= panelWidth + INFO_PANEL_GAP;
+    const fallbackDockRight = Math.max(0, bounds.width - panelWidth);
+    const left = hasRoomOnRight
+      ? preferredLeft
+      : canDockLeft
+        ? record.element.offsetLeft - panelWidth - INFO_PANEL_GAP
+        : fallbackDockRight;
+    const top = clamp(
+      record.element.offsetTop,
+      0,
+      Math.max(0, bounds.height - panelHeight),
+    );
+
+    panel.style.left = `${left}px`;
+    panel.style.top = `${top}px`;
+    panel.style.width = `${panelWidth}px`;
+    panel.style.height = `${panelHeight}px`;
+    panel.style.zIndex = String(Number(record.element.style.zIndex || 0) + 1);
+    panel.hidden = false;
+  }
+
+  function syncAllInfoPanels() {
+    for (const record of windows.values()) {
+      syncInfoPanelPosition(record);
+    }
+  }
+
+  function setInfoPanelVisible(record, visible) {
+    if (!record?.infoPanel) {
+      return false;
+    }
+
+    record.infoPanelVisible = Boolean(visible);
+    syncWindowControlState(record);
+    syncInfoPanelPosition(record);
+
+    eventBus.emit("window:info-panel-toggled", {
+      windowId: record.id,
+      appId: record.appId,
+      visible: record.infoPanelVisible,
+    });
+
+    return true;
+  }
+
+  function toggleInfoPanel(windowId) {
+    const record = windows.get(windowId);
+
+    if (!record?.infoPanel) {
+      return false;
+    }
+
+    return setInfoPanelVisible(record, !record.infoPanelVisible);
+  }
+
   function applyWindowGeometry(record, geometry) {
     record.element.style.left = `${geometry.left}px`;
     record.element.style.top = `${geometry.top}px`;
     record.element.style.width = `${geometry.width}px`;
     record.element.style.height = `${geometry.height}px`;
+
+    if (record.infoPanel) {
+      syncInfoPanelPosition(record);
+    }
   }
 
   function captureWindowGeometry(record) {
@@ -147,8 +432,19 @@ export function createWindowManager({ eventBus, container = null } = {}) {
     record.closeButton.hidden = !record.closable;
     record.closeButton.disabled = !record.closable;
 
+    if (record.infoButton) {
+      const hasInfoPanel = Boolean(record.infoPanel);
+      record.infoButton.hidden = !hasInfoPanel;
+      record.infoButton.disabled = !hasInfoPanel;
+      record.infoButton.classList.toggle(
+        "is-active",
+        hasInfoPanel && record.infoPanelVisible && !record.minimized,
+      );
+    }
+
     record.resizeHandle.hidden = !record.resizable || record.maximized;
     record.element.classList.toggle("is-maximized", record.maximized);
+    syncInfoPanelPosition(record);
   }
 
   function clampRecordToViewport(record) {
@@ -178,7 +474,21 @@ export function createWindowManager({ eventBus, container = null } = {}) {
 
   function setContainer(nextContainer) {
     activeContainer = nextContainer;
+
+    for (const record of windows.values()) {
+      if (!record.infoPanelElement) {
+        continue;
+      }
+
+      if (activeContainer) {
+        activeContainer.append(record.infoPanelElement);
+      } else {
+        record.infoPanelElement.hidden = true;
+      }
+    }
+
     clampAllWindowsToViewport();
+    syncAllInfoPanels();
   }
 
   function listWindows() {
@@ -230,6 +540,7 @@ export function createWindowManager({ eventBus, container = null } = {}) {
     record.element.classList.add("is-focused");
     record.element.style.zIndex = String(focusManager.claim(windowId));
     activeWindowId = windowId;
+    syncAllInfoPanels();
 
     eventBus.emit("window:focused", { windowId });
 
@@ -340,6 +651,7 @@ export function createWindowManager({ eventBus, container = null } = {}) {
 
     record.disposeDrag();
     record.disposeResize();
+    record.disposeInfoPanel?.();
     record.disposeContent?.();
     record.element.remove();
 
@@ -374,6 +686,7 @@ export function createWindowManager({ eventBus, container = null } = {}) {
     record.minimized = true;
     record.element.classList.add("is-minimized");
     record.element.hidden = true;
+    syncWindowControlState(record);
 
     if (activeWindowId === windowId) {
       activeWindowId = null;
@@ -439,6 +752,8 @@ export function createWindowManager({ eventBus, container = null } = {}) {
     minimizable = true,
     maximizable = resizable,
     closable = true,
+    startMaximized = false,
+    infoPanel = null,
     left,
     top,
   }) {
@@ -471,6 +786,7 @@ export function createWindowManager({ eventBus, container = null } = {}) {
     const titleLabel = document.createElement("span");
     titleLabel.className = "os-window__title";
     titleLabel.textContent = title || "Application";
+    const normalizedInfoPanel = normalizeInfoPanelConfig(infoPanel);
 
     const controls = document.createElement("div");
     controls.className = "os-window__controls";
@@ -489,6 +805,13 @@ export function createWindowManager({ eventBus, container = null } = {}) {
     maximizeButton.setAttribute("aria-label", "Maximize window");
     maximizeButton.innerHTML = '<span class="os-window__control-icon os-window__control-icon--maximize"></span>';
 
+    const infoButton = document.createElement("button");
+    infoButton.type = "button";
+    infoButton.className = "os-window__control os-window__control--info";
+    infoButton.title = "App Info";
+    infoButton.setAttribute("aria-label", "Open app information panel");
+    infoButton.innerHTML = '<span class="os-window__control-icon os-window__control-icon--info"></span>';
+
     const closeButton = document.createElement("button");
     closeButton.type = "button";
     closeButton.className = "os-window__control os-window__control--close";
@@ -496,7 +819,7 @@ export function createWindowManager({ eventBus, container = null } = {}) {
     closeButton.setAttribute("aria-label", "Close window");
     closeButton.innerHTML = '<span class="os-window__control-icon os-window__control-icon--close"></span>';
 
-    controls.append(minimizeButton, maximizeButton, closeButton);
+    controls.append(minimizeButton, maximizeButton, infoButton, closeButton);
     titlebar.append(titleLabel, controls);
 
     const body = document.createElement("div");
@@ -573,6 +896,16 @@ export function createWindowManager({ eventBus, container = null } = {}) {
           left: clamped.left,
           top: clamped.top,
         };
+      },
+      onMove() {
+        if (record) {
+          syncInfoPanelPosition(record);
+        }
+      },
+      onMoveEnd() {
+        if (record) {
+          syncInfoPanelPosition(record);
+        }
       },
     });
 
@@ -663,19 +996,24 @@ export function createWindowManager({ eventBus, container = null } = {}) {
       title,
       minimized: false,
       maximized: false,
+      infoPanelVisible: false,
       minWidth,
       minHeight,
       resizable,
       minimizable,
       maximizable,
       closable,
+      infoPanel: normalizedInfoPanel,
       previousGeometry: null,
       element,
       titlebar,
       minimizeButton,
       maximizeButton,
+      infoButton,
       closeButton,
       resizeHandle,
+      infoPanelElement: null,
+      disposeInfoPanel: null,
       disposeDrag,
       disposeResize() {
         resizeHandle.removeEventListener("pointerdown", onResizePointerDown);
@@ -711,6 +1049,12 @@ export function createWindowManager({ eventBus, container = null } = {}) {
       toggleMaximizeWindow(id);
     });
 
+    infoButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      toggleInfoPanel(id);
+      focusWindow(id);
+    });
+
     closeButton.addEventListener("click", (event) => {
       event.stopPropagation();
       closeWindow(id);
@@ -725,6 +1069,22 @@ export function createWindowManager({ eventBus, container = null } = {}) {
       appId,
       title,
     });
+
+    if (startMaximized) {
+      if (maximizable) {
+        maximizeWindow(id);
+      } else {
+        record.previousGeometry = captureWindowGeometry(record);
+        record.maximized = true;
+        applyWindowGeometry(record, getMaximizedGeometry());
+        syncWindowControlState(record);
+
+        eventBus.emit("window:maximized", {
+          windowId: id,
+          appId: record.appId,
+        });
+      }
+    }
 
     return id;
   }
@@ -746,6 +1106,7 @@ export function createWindowManager({ eventBus, container = null } = {}) {
     closeAll,
     minimizeWindow,
     restoreWindow,
+    toggleInfoPanel,
     destroy() {
       window.removeEventListener("resize", clampAllWindowsToViewport);
       closeAll();

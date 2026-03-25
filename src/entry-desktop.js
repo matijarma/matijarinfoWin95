@@ -1,4 +1,5 @@
 import { createDefaultManifests } from "./apps/manifests.js";
+import { loadWebAppConfigs } from "./apps/web-apps.js";
 import { createAppRegistry } from "./core/app-registry/index.js";
 import { createEventBus } from "./core/event-bus/index.js";
 import { createFileLayer } from "./core/file-layer/index.js";
@@ -8,11 +9,12 @@ import { OS_STATES } from "./core/os-kernel/states.js";
 import { createWindowManager } from "./core/window-manager/index.js";
 import { createDesktopShell } from "./desktop-shell/index.js";
 
-export function mountDesktopRuntime(root) {
+export async function mountDesktopRuntime(root) {
   const eventBus = createEventBus();
   const mediaEngine = createMediaEngine({ eventBus });
   const fileLayer = createFileLayer();
   const windowManager = createWindowManager({ eventBus });
+  const webApps = await loadWebAppConfigs();
   const appRegistry = createAppRegistry({
     eventBus,
     windowManager,
@@ -21,7 +23,7 @@ export function mountDesktopRuntime(root) {
   });
   const kernel = createOSKernel({ eventBus });
 
-  appRegistry.registerApps(createDefaultManifests({ fileLayer, mediaEngine }));
+  appRegistry.registerApps(createDefaultManifests({ fileLayer, mediaEngine, webApps }));
 
   const shell = createDesktopShell({
     root,

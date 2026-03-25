@@ -1,4 +1,6 @@
 import { createFolderWindow } from "./folder-window.js";
+import { createTaskManagerContent } from "./task-manager.js";
+import { createWebAppManifests } from "./web-apps.js";
 import { createIconSurface } from "../ui/icon-surface/index.js";
 import {
   CLOCK_LOCALE_OPTIONS,
@@ -7,6 +9,8 @@ import {
   formatClockTooltip,
   formatClockTime,
   getClockDate,
+  getBiosModemLabel,
+  getBiosNetworkLabel,
   getClockInputValues,
   getTimeZoneMapPositionPercent,
   getTimeZonePresetById,
@@ -81,6 +85,21 @@ function createMyComputerContent(launchApp) {
         appId: "control-panel",
       },
       {
+        id: "my-computer-network-neighborhood",
+        label: "Network Neighborhood",
+        iconKey: "network",
+        appId: "network-status",
+      },
+      {
+        id: "my-computer-dialup",
+        label: "Dial-Up Networking",
+        iconKey: "modem",
+        appId: "network-status",
+        launchPayload: {
+          focus: "modem",
+        },
+      },
+      {
         id: "my-computer-recycle-bin",
         label: "Recycle Bin",
         iconKey: "recycle_bin",
@@ -95,7 +114,7 @@ function createMyComputerContent(launchApp) {
     ],
     onItemActivate: (item) => {
       if (item.appId) {
-        launchApp(item.appId);
+        launchApp(item.appId, item.launchPayload);
       }
     },
   });
@@ -148,10 +167,37 @@ function createControlPanelContent(launchApp) {
     className: "icon-surface--folder",
     ariaLabel: "Control Panel categories",
     items: [
+      { id: "cp-accessibility", label: "Accessibility Options", iconKey: "settings" },
+      { id: "cp-add-hardware", label: "Add New Hardware", iconKey: "settings" },
+      { id: "cp-add-remove", label: "Add/Remove Programs", iconKey: "settings" },
       { id: "cp-display", label: "Display", iconKey: "settings" },
+      { id: "cp-fonts", label: "Fonts", iconKey: "document" },
+      { id: "cp-game-controllers", label: "Game Controllers", iconKey: "settings" },
+      {
+        id: "cp-internet",
+        label: "Internet",
+        iconKey: "internet_explorer",
+        appId: "internet-explorer",
+      },
+      { id: "cp-keyboard", label: "Keyboard", iconKey: "settings" },
+      {
+        id: "cp-modems",
+        label: "Modems",
+        iconKey: "modem",
+        appId: "network-status",
+        launchPayload: {
+          focus: "modem",
+        },
+      },
       { id: "cp-mouse", label: "Mouse", iconKey: "settings" },
-      { id: "cp-sounds", label: "Multimedia", iconKey: "volume" },
-      { id: "cp-network", label: "Network", iconKey: "network" },
+      { id: "cp-multimedia", label: "Multimedia", iconKey: "volume" },
+      { id: "cp-network", label: "Network", iconKey: "network", appId: "network-status" },
+      { id: "cp-passwords", label: "Passwords", iconKey: "settings" },
+      { id: "cp-power", label: "Power", iconKey: "settings" },
+      { id: "cp-printers", label: "Printers", iconKey: "folder" },
+      { id: "cp-regional", label: "Regional Settings", iconKey: "settings" },
+      { id: "cp-sounds", label: "Sounds", iconKey: "volume" },
+      { id: "cp-system", label: "System", iconKey: "computer" },
       {
         id: "cp-clock",
         label: "Date/Time",
@@ -161,7 +207,7 @@ function createControlPanelContent(launchApp) {
     ],
     onActivate: (item) => {
       if (item.appId) {
-        launchApp(item.appId);
+        launchApp(item.appId, item.launchPayload);
         status.textContent = `Opened ${item.label}.`;
         return;
       }
@@ -174,6 +220,113 @@ function createControlPanelContent(launchApp) {
     element: root,
     dispose() {
       iconSurface.destroy();
+    },
+  };
+}
+
+function createNetworkStatusContent(launchPayload = {}) {
+  const root = document.createElement("section");
+  root.className = "network-status";
+  root.innerHTML = `
+    <header class="network-status__header">
+      <h2>Network Status</h2>
+      <p class="network-status__subtitle">BIOS Ethernet profile and active Windows networking stack.</p>
+    </header>
+    <section class="network-status__panel">
+      <div class="network-status__grid">
+        <span class="network-status__label">Adapter</span>
+        <span data-network-field="adapter"></span>
+        <span class="network-status__label">BIOS Profile</span>
+        <span data-network-field="profile"></span>
+        <span class="network-status__label">Link Throughput</span>
+        <span data-network-field="throughput"></span>
+        <span class="network-status__label">Stack</span>
+        <span data-network-field="stack"></span>
+        <span class="network-status__label">IRQ / I-O Base</span>
+        <span data-network-field="io"></span>
+        <span class="network-status__label">Dial-Up Fallback</span>
+        <span data-network-field="modem"></span>
+      </div>
+    </section>
+    <footer class="network-status__footer">
+      <div class="network-status__actions">
+        <button type="button" class="network-status__button" data-network-action="refresh">Refresh</button>
+      </div>
+      <p class="network-status__status" data-network-status>Ready.</p>
+    </footer>
+  `;
+
+  const adapterNode = root.querySelector('[data-network-field="adapter"]');
+  const profileNode = root.querySelector('[data-network-field="profile"]');
+  const throughputNode = root.querySelector('[data-network-field="throughput"]');
+  const stackNode = root.querySelector('[data-network-field="stack"]');
+  const ioNode = root.querySelector('[data-network-field="io"]');
+  const modemNode = root.querySelector('[data-network-field="modem"]');
+  const statusNode = root.querySelector("[data-network-status]");
+  const refreshButton = root.querySelector('[data-network-action="refresh"]');
+
+  function setStatus(textContent) {
+    if (statusNode) {
+      statusNode.textContent = textContent;
+    }
+  }
+
+  function renderBiosNetworkStatus(statusMessage) {
+    const biosProfile = readBiosProfile();
+    const isTurbo = biosProfile.networkTurbo;
+
+    if (adapterNode) {
+      adapterNode.textContent = isTurbo
+        ? "3Com EtherLink III (Turbo bridge mode)"
+        : "Novell NE2000 Compatible";
+    }
+
+    if (profileNode) {
+      profileNode.textContent = getBiosNetworkLabel(biosProfile);
+    }
+
+    if (throughputNode) {
+      throughputNode.textContent = isTurbo
+        ? "10.0 MBps (full duplex)"
+        : "2.0 MBps (compatibility mode)";
+    }
+
+    if (stackNode) {
+      stackNode.textContent = isTurbo ? "TCP/IP + NetBEUI" : "TCP/IP + IPX/SPX";
+    }
+
+    if (ioNode) {
+      ioNode.textContent = isTurbo ? "IRQ 10 / 0300h" : "IRQ 5 / 0320h";
+    }
+
+    if (modemNode) {
+      modemNode.textContent = getBiosModemLabel(biosProfile);
+    }
+
+    setStatus(statusMessage || "Status refreshed from BIOS profile.");
+  }
+
+  const refreshHandler = () => {
+    renderBiosNetworkStatus("Status refreshed from BIOS profile.");
+  };
+
+  if (refreshButton instanceof HTMLButtonElement) {
+    refreshButton.addEventListener("click", refreshHandler);
+  }
+
+  const openedFromModemTray = launchPayload && launchPayload.focus === "modem";
+  renderBiosNetworkStatus(
+    openedFromModemTray
+      ? "Opened from modem path. Showing Ethernet profile with dial-up fallback."
+      : "Ready.",
+  );
+
+  return {
+    element: root,
+    dispose() {
+      if (refreshButton instanceof HTMLButtonElement) {
+        refreshButton.removeEventListener("click", refreshHandler);
+      }
     },
   };
 }
@@ -576,6 +729,10 @@ const RUN_COMMANDS = new Map([
   ["internet", "internet-explorer"],
   ["control", "control-panel"],
   ["control panel", "control-panel"],
+  ["network", "network-status"],
+  ["network status", "network-status"],
+  ["dial-up", "network-status"],
+  ["dialup", "network-status"],
   ["timedate", "date-time-properties"],
   ["date/time", "date-time-properties"],
   ["clock", "date-time-properties"],
@@ -585,6 +742,9 @@ const RUN_COMMANDS = new Map([
   ["recycle", "recycle-bin"],
   ["recycle bin", "recycle-bin"],
   ["portfolio", "about-matijar"],
+  ["taskmgr", "task-manager"],
+  ["taskman", "task-manager"],
+  ["task manager", "task-manager"],
 ]);
 
 function createRunDialogContent(launchApp) {
@@ -601,7 +761,7 @@ function createRunDialogContent(launchApp) {
         <button type="submit" class="run-dialog__button">OK</button>
       </div>
     </form>
-    <p class="run-dialog__hint">Try: iexplore, control, timedate, explorer, recycle, portfolio</p>
+    <p class="run-dialog__hint">Try: iexplore, control, network, timedate, taskmgr, explorer, recycle, portfolio</p>
     <p class="run-dialog__status">Ready.</p>
   `;
 
@@ -644,8 +804,8 @@ function createRunDialogContent(launchApp) {
   };
 }
 
-export function createDefaultManifests({ fileLayer }) {
-  return [
+export function createDefaultManifests({ fileLayer, webApps = [] } = {}) {
+  const manifests = [
     {
       id: "my-computer",
       title: "My Computer",
@@ -685,8 +845,26 @@ export function createDefaultManifests({ fileLayer }) {
         height: 380,
         minWidth: 420,
         minHeight: 280,
+        singleInstance: true,
       },
       createContent: ({ launchApp }) => createControlPanelContent(launchApp),
+    },
+    {
+      id: "network-status",
+      title: "Network",
+      iconKey: "network",
+      placements: ["start"],
+      startGroup: "settings",
+      hidden: true,
+      window: {
+        width: 560,
+        height: 350,
+        minWidth: 420,
+        minHeight: 280,
+        resizable: false,
+        singleInstance: true,
+      },
+      createContent: ({ launchPayload }) => createNetworkStatusContent(launchPayload),
     },
     {
       id: "date-time-properties",
@@ -701,6 +879,7 @@ export function createDefaultManifests({ fileLayer }) {
         minWidth: 480,
         minHeight: 360,
         resizable: false,
+        singleInstance: true,
       },
       createContent: ({ eventBus }) => createDateTimePropertiesContent({ eventBus }),
     },
@@ -733,8 +912,31 @@ export function createDefaultManifests({ fileLayer }) {
         resizable: false,
         minimizable: false,
         maximizable: false,
+        singleInstance: true,
       },
       createContent: ({ launchApp }) => createRunDialogContent(launchApp),
+    },
+    {
+      id: "task-manager",
+      title: "Windows Task Manager",
+      iconKey: "task_manager",
+      placements: ["start"],
+      startGroup: "special",
+      hidden: true,
+      window: {
+        width: 700,
+        height: 500,
+        minWidth: 580,
+        minHeight: 390,
+        singleInstance: true,
+      },
+      createContent: ({ eventBus, windowManager, appRegistry, launchApp }) =>
+        createTaskManagerContent({
+          eventBus,
+          windowManager,
+          appRegistry,
+          launchApp,
+        }),
     },
     {
       id: "about-matijar",
@@ -751,4 +953,6 @@ export function createDefaultManifests({ fileLayer }) {
       createContent: () => createAboutContent(fileLayer),
     },
   ];
+
+  return manifests.concat(createWebAppManifests(webApps));
 }

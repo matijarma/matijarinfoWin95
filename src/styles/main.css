@@ -620,7 +620,11 @@ select {
 .ie-window__go,
 .folder-window__menu-button,
 .clock-properties__button,
-.clock-properties__tab {
+.clock-properties__tab,
+.network-status__button,
+.task-manager__button,
+.task-manager__tab,
+.task-manager__menu-button {
   border: 2px solid;
   border-color: #ffffff #808080 #808080 #ffffff;
   background: #c0c0c0;
@@ -694,6 +698,20 @@ select {
   transform: rotate(-45deg);
 }
 
+.os-window__control-icon--info::before {
+  content: "i";
+  position: absolute;
+  inset: -1px 0 0;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+}
+
+.os-window__control--info.is-active {
+  border-color: #808080 #ffffff #ffffff #808080;
+}
+
 .os-window__control:active,
 .taskbar__start:active,
 .taskbar__window:active,
@@ -703,7 +721,11 @@ select {
 .ie-window__go:active,
 .folder-window__menu-button:active,
 .clock-properties__button:active,
-.clock-properties__tab:active {
+.clock-properties__tab:active,
+.network-status__button:active,
+.task-manager__button:active,
+.task-manager__tab:active,
+.task-manager__menu-button:active {
   border-color: #808080 #ffffff #ffffff #808080;
 }
 
@@ -733,6 +755,95 @@ select {
     #808080 3px
   );
   cursor: nwse-resize;
+}
+
+.os-window-info-panel {
+  position: absolute;
+  pointer-events: auto;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  border: 2px solid;
+  border-color: #ffffff #000000 #000000 #ffffff;
+  box-shadow: inset -1px -1px 0 #808080;
+  background: #c0c0c0;
+  min-height: 180px;
+  overflow: hidden;
+}
+
+.os-window-info-panel[hidden] {
+  display: none;
+}
+
+.os-window-info-panel__header {
+  min-height: 22px;
+  display: flex;
+  align-items: center;
+  padding: 2px 6px;
+  background: linear-gradient(90deg, var(--titlebar-active-start), var(--titlebar-active-end));
+  color: #ffffff;
+}
+
+.os-window-info-panel__title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.os-window-info-panel__body {
+  min-height: 0;
+  overflow: auto;
+  padding: 7px;
+  background: #ffffff;
+  border-top: 1px solid #808080;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.os-window-info-panel__description {
+  margin: 0;
+  line-height: 1.35;
+}
+
+.os-window-info-panel__meta {
+  margin: 0;
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+  gap: 4px 6px;
+  align-items: start;
+}
+
+.os-window-info-panel__meta dt {
+  font-weight: 700;
+}
+
+.os-window-info-panel__meta dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.os-window-info-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.os-window-info-panel__button,
+.web-app-host__button {
+  border: 2px solid;
+  border-color: #ffffff #808080 #808080 #ffffff;
+  background: #c0c0c0;
+  color: #000000;
+  min-height: 21px;
+  padding: 0 8px;
+}
+
+.os-window-info-panel__button:active,
+.web-app-host__button:active {
+  border-color: #808080 #ffffff #ffffff #808080;
 }
 
 .taskbar {
@@ -1088,7 +1199,9 @@ select {
 .app-about,
 .ie-window,
 .run-dialog,
-.clock-properties {
+.clock-properties,
+.network-status,
+.task-manager {
   height: 100%;
   position: relative;
 }
@@ -1097,7 +1210,9 @@ select {
 .control-panel-app,
 .ie-window,
 .run-dialog,
-.clock-properties {
+.clock-properties,
+.network-status,
+.task-manager {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1112,6 +1227,7 @@ select {
 .control-panel-app h2,
 .run-dialog__title,
 .clock-properties h2,
+.network-status h2,
 .app-about h2,
 .app-about h3 {
   margin: 0;
@@ -1127,6 +1243,8 @@ select {
 .run-dialog__status,
 .clock-properties__subtitle,
 .clock-properties__status,
+.network-status__subtitle,
+.network-status__status,
 .app-about p,
 .ie-window__status {
   margin: 0;
@@ -1163,7 +1281,8 @@ select {
 .folder-window__status,
 .control-panel-app__status,
 .ie-window__status,
-.run-dialog__status {
+.run-dialog__status,
+.network-status__status {
   border-top: 1px solid #808080;
   padding-top: 4px;
   font-size: 11px;
@@ -1185,6 +1304,60 @@ select {
   background: #c0c0c0;
 }
 
+.web-app-host {
+  height: 100%;
+  position: relative;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 6px;
+}
+
+.web-app-host__toolbar {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 3px;
+  border: 2px solid;
+  border-color: #ffffff #808080 #808080 #ffffff;
+  background: #c0c0c0;
+}
+
+.web-app-host__origin {
+  min-width: 0;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.web-app-host__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.web-app-host__frame {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border: 2px solid;
+  border-color: #808080 #ffffff #ffffff #808080;
+  background: #ffffff;
+}
+
+.web-app-host--portrait .web-app-host__frame {
+  max-width: 560px;
+  justify-self: center;
+}
+
+.web-app-host__status {
+  margin: 0;
+  border-top: 1px solid #808080;
+  padding-top: 4px;
+  font-size: 11px;
+}
+
 .ie-window__address,
 .run-dialog__input,
 .clock-properties__input,
@@ -1199,7 +1372,8 @@ select {
 
 .ie-window__go,
 .run-dialog__button,
-.clock-properties__button {
+.clock-properties__button,
+.network-status__button {
   min-width: 70px;
   min-height: 21px;
 }
@@ -1300,6 +1474,230 @@ select {
   font-size: 11px;
   border-top: 1px solid #808080;
   padding-top: 4px;
+}
+
+.network-status__header {
+  display: grid;
+  gap: 2px;
+}
+
+.network-status__panel {
+  flex: 1;
+  min-height: 0;
+  border: 2px solid;
+  border-color: #808080 #ffffff #ffffff #808080;
+  background: #ffffff;
+  padding: 8px;
+}
+
+.network-status__grid {
+  display: grid;
+  grid-template-columns: minmax(140px, 200px) 1fr;
+  gap: 7px 10px;
+}
+
+.network-status__label {
+  font-weight: 700;
+}
+
+.network-status__footer {
+  display: grid;
+  gap: 6px;
+}
+
+.network-status__actions {
+  display: flex;
+}
+
+.network-status__button {
+  min-width: 84px;
+  min-height: 21px;
+}
+
+.task-manager__menubar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.task-manager__menu-button {
+  min-height: 20px;
+  min-width: 46px;
+  padding: 0 7px;
+}
+
+.task-manager__menu-label {
+  display: inline-block;
+  padding-top: 1px;
+}
+
+.task-manager__tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.task-manager__tab {
+  min-width: 108px;
+  min-height: 22px;
+  padding: 0 9px;
+}
+
+.task-manager__tab.is-active {
+  border-color: #808080 #ffffff #ffffff #808080;
+  background: #d2d2d2;
+}
+
+.task-manager__panel {
+  flex: 1;
+  min-height: 0;
+  border: 2px solid;
+  border-color: #808080 #ffffff #ffffff #808080;
+  background: #ffffff;
+  padding: 5px;
+}
+
+.task-manager__list {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  border: 1px solid #808080;
+  background: #ffffff;
+}
+
+.task-manager__table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.task-manager__table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  text-align: left;
+  background: #d8d8d8;
+  border-bottom: 1px solid #808080;
+  padding: 3px 5px;
+  font-weight: 700;
+}
+
+.task-manager__table td {
+  padding: 2px 5px;
+  white-space: nowrap;
+}
+
+.task-manager__table tr.is-selected td {
+  background: #000080;
+  color: #ffffff;
+}
+
+.task-manager__table--processes th:first-child,
+.task-manager__table--processes td:first-child {
+  max-width: 230px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.task-manager__align-right {
+  text-align: right;
+}
+
+.task-manager__empty {
+  margin: 0;
+  padding: 8px;
+}
+
+.task-manager__performance {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 9px;
+}
+
+.task-manager__meters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.task-manager__meter-card {
+  border: 1px solid #808080;
+  padding: 6px;
+  display: grid;
+  gap: 5px;
+}
+
+.task-manager__meter-card h3 {
+  margin: 0;
+  font-size: 12px;
+}
+
+.task-manager__meter-value {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.task-manager__history {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  align-items: end;
+  gap: 1px;
+  height: 82px;
+  border: 1px solid #808080;
+  background: #00135e;
+  padding: 3px;
+}
+
+.task-manager__history-bar {
+  background: linear-gradient(180deg, #53ff6f 0%, #18c33b 100%);
+  min-height: 2px;
+}
+
+.task-manager__summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  border: 1px solid #808080;
+  padding: 6px;
+  background: #f8f8f8;
+}
+
+.task-manager__summary-item {
+  display: grid;
+  gap: 2px;
+}
+
+.task-manager__summary-item span {
+  color: #343434;
+}
+
+.task-manager__summary-item strong {
+  font-weight: 700;
+}
+
+.task-manager__footer {
+  display: grid;
+  gap: 6px;
+}
+
+.task-manager__status {
+  margin: 0;
+  border-top: 1px solid #808080;
+  padding-top: 4px;
+  font-size: 11px;
+}
+
+.task-manager__action-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.task-manager__button {
+  min-width: 100px;
+  min-height: 22px;
 }
 
 .timezone-map {
@@ -1413,5 +1811,13 @@ select {
 
   .timezone-map {
     height: 108px;
+  }
+
+  .task-manager__summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .task-manager__meters {
+    grid-template-columns: 1fr;
   }
 }

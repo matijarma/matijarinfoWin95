@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 1,
+  "startMenuSubmenu": "Web Apps",
+  "apps": [
+    {
+      "id": "sfss",
+      "title": "SFSS",
+      "description": "Screenwriting app",
+      "url": "https://sfss.app",
+      "iconUrl": "https://sfss.app/favicon.ico",
+      "orientation": "landscape",
+      "defaultFullscreen": true,
+      "resizable": true
+    },
+    {
+      "id": "dnevnik-potrosnje",
+      "title": "Dnevnik Potrosnje",
+      "description": "Mileage journal",
+      "url": "https://dnevnikpotrosnje.kompmajstor.eu",
+      "iconUrl": "https://dnevnikpotrosnje.kompmajstor.eu/favicon.ico",
+      "orientation": "portrait",
+      "defaultFullscreen": false,
+      "resizable": true
+    },
+    {
+      "id": "kafic",
+      "title": "Kafic.hr",
+      "description": "Realtime P2P decentralized bar orders for waiters and bartenders",
+      "url": "https://kafić.hr",
+      "iconUrl": "https://kafić.hr/favicon.ico",
+      "orientation": "portrait",
+      "defaultFullscreen": false,
+      "resizable": true
+    },
+    {
+      "id": "psd-lat",
+      "title": "PSD.lat",
+      "description": "Realtime P2P decentralized inter-device secure message/file exchange",
+      "url": "https://psd.lat",
+      "iconUrl": "https://psd.lat/favicon.ico",
+      "orientation": "portrait",
+      "defaultFullscreen": false,
+      "resizable": false
+    },
+    {
+      "id": "lozinke",
+      "title": "Lozinke",
+      "description": "Password generator",
+      "url": "https://lozinke.kompmajstor.eu/",
+      "iconUrl": "https://lozinke.kompmajstor.eu/favicon.ico",
+      "orientation": "portrait",
+      "defaultFullscreen": false,
+      "resizable": true
+    },
+    {
+      "id": "cjenik",
+      "title": "Cjenik.app",
+      "description": "Digital price menus for bars",
+      "url": "https://cjenik.app",
+      "iconUrl": "https://cjenik.app/favicon.ico",
+      "orientation": "portrait",
+      "defaultFullscreen": false,
+      "resizable": false
+    },
+    {
+      "id": "xml-u-pdf",
+      "title": "XML u PDF",
+      "description": "Croatian e-Racun XML to PDF converter",
+      "url": "https://aning.hr/XMLuPDF-pwa/",
+      "iconUrl": "https://aning.hr/favicon.ico",
+      "orientation": "landscape",
+      "defaultFullscreen": false,
+      "resizable": false
+    },
+    {
+      "id": "speedtype",
+      "title": "SpeedType",
+      "description": "Speed typing game",
+      "url": "https://matijar.info/speedtype/",
+      "iconUrl": "https://matijar.info/favicon.ico",
+      "orientation": "landscape",
+      "defaultFullscreen": true,
+      "resizable": false
+    },
+    {
+      "id": "pongwars",
+      "title": "Pong Wars",
+      "description": "Pong Wars simulation game",
+      "url": "https://matijar.info/pongwars/",
+      "iconUrl": "https://matijar.info/favicon.ico",
+      "orientation": "landscape",
+      "defaultFullscreen": true,
+      "resizable": true
+    }
+  ]
+}

@@ -326,7 +326,7 @@ export function createIconSurface({
       iconButton.title = item.label;
       iconButton.tabIndex = -1;
 
-      const glyph = createIconGlyph(item.iconKey);
+      const glyph = createIconGlyph(item.iconKey, { iconUrl: item.iconUrl });
       const label = document.createElement("span");
       label.className = "win-icon__label";
       label.textContent = item.label;

@@ -65,6 +65,28 @@ export function createAppRegistry({
       return null;
     }
 
+    if (manifest.window?.singleInstance) {
+      const existingWindow = windowManager
+        .listWindows()
+        .find((windowRecord) => windowRecord.appId === manifest.id);
+
+      if (existingWindow) {
+        if (existingWindow.minimized) {
+          windowManager.restoreWindow(existingWindow.id);
+        } else {
+          windowManager.focusWindow(existingWindow.id);
+        }
+
+        eventBus?.emit("app:launch-reused", {
+          appId: manifest.id,
+          windowId: existingWindow.id,
+          launchPayload,
+        });
+
+        return existingWindow.id;
+      }
+    }
+
     const contentResult = manifest.createContent({
       app: manifest,
       eventBus,
@@ -72,7 +94,23 @@ export function createAppRegistry({
       mediaEngine,
       launchPayload,
       launchApp,
+      appRegistry: {
+        getApp,
+        listApps,
+        launchApp,
+      },
+      windowManager,
     });
+    const infoPanel =
+      typeof manifest.createInfoPanel === "function"
+        ? manifest.createInfoPanel({
+            app: manifest,
+            launchPayload,
+            eventBus,
+            fileLayer,
+            mediaEngine,
+          })
+        : manifest.infoPanel;
 
     let content = contentResult;
     let onDispose = null;
@@ -103,6 +141,8 @@ export function createAppRegistry({
           ? manifest.window.maximizable
           : manifest.window.resizable !== false,
       closable: manifest.window.closable !== false,
+      startMaximized: manifest.window.startMaximized === true,
+      infoPanel,
       content,
       onDispose,
     });

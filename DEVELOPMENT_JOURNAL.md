@@ -510,3 +510,24 @@ This file is append-only and serves as the running log for project progress.
 - Next steps:
   - Add automated UI coverage for Ubuntu boot chain (`power on -> BIOS -> boot log -> shell`).
   - Add focused UX regression checks for history navigation and auto-focus behavior after runtime remount.
+
+## 2026-03-27 22:39 (CET)
+- Summary: Implemented a JSON-driven mock filesystem with shared cross-OS partition browsing for Win95, WinXP, and Ubuntu shell mode.
+- Changes made:
+  - Rebuilt `src/core/file-layer/index.js` into an async filesystem engine that loads `src/core/file-layer/mock-file-system.json`.
+  - Added partition model for `C:` (FAT32 Win95), `D:` (NTFS XP), `/dev/sda2` (ext4 Linux), plus shared `S:` / `/mnt/storage` (exFAT).
+  - Added JSON-configured file access behaviors: `inline-text`, `host-file`, `launch-app`, and simulated fallback for unmapped files/paths.
+  - Updated `My Computer` to read mounted volumes from file-layer instead of hardcoded drives.
+  - Added hidden app manifests `mock-file-browser` and `mock-file-viewer` for browsing directories and opening mapped files/actions.
+  - Updated `entry-desktop` to await file-layer creation and pass it to both desktop GUI runtime and Ubuntu shell runtime.
+  - Reworked Ubuntu shell filesystem commands to use shared file-layer (`pwd`, `cd`, `ls`, `cat`) with virtual `/etc` plus mount traversal under `/mnt` and `/dev`.
+  - Added `file-viewer` styles to `src/styles/main.css`.
+- Decisions:
+  - Kept the mock filesystem source-of-truth in a JSON file for fast content/control changes without JS rewrites.
+  - Used a single cross-runtime filesystem API so GUI Explorer and Ubuntu shell resolve the same partition tree.
+- Risks / blockers:
+  - `host-file` mappings depend on files being served at configured web paths.
+  - No browser-level interaction automation was run in this pass; validation is syntax/runtime smoke only.
+- Next steps:
+  - Add write/delete simulation rules in the JSON schema.
+  - Add user-facing errors/status badges for simulated vs host-backed files in Explorer.

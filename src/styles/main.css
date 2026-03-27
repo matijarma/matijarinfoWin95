@@ -163,36 +163,45 @@ select {
 }
 
 .ubuntu-shell {
-  display: grid;
-  grid-template-rows: auto 1fr;
-}
-
-.ubuntu-shell__header {
-  min-height: 30px;
-  display: flex;
-  align-items: center;
-  padding: 0 12px;
-  border-bottom: 1px solid #38404b;
-  background: linear-gradient(180deg, #20262f 0%, #171b22 100%);
-  color: #cfd6dc;
-  font-size: 12px;
+  display: block;
+  overflow: hidden;
+  --ubuntu-session-top-offset: clamp(28px, 10vh, 132px);
+  --ubuntu-session-height: clamp(220px, 44vh, 460px);
 }
 
 .ubuntu-shell__terminal {
-  overflow: auto;
+  height: 100%;
+  overflow: hidden;
   padding: clamp(12px, 2.4vw, 26px);
   display: flex;
+  align-items: flex-start;
 }
 
 .ubuntu-shell__session {
   width: min(940px, 100%);
-  margin: auto;
+  margin: var(--ubuntu-session-top-offset) auto 0;
+  height: calc(100% - var(--ubuntu-session-top-offset));
+  max-height: var(--ubuntu-session-height);
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 8px;
 }
 
 .ubuntu-shell__output {
   display: grid;
   gap: 3px;
   align-content: start;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.ubuntu-shell__output::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 .ubuntu-shell__line {
@@ -218,7 +227,14 @@ select {
   grid-template-columns: auto 1fr;
   gap: 8px;
   align-items: center;
-  margin-top: 8px;
+  margin-top: 0;
+}
+
+@media (max-height: 760px) {
+  .ubuntu-shell {
+    --ubuntu-session-top-offset: clamp(10px, 4vh, 44px);
+    --ubuntu-session-height: clamp(180px, 54vh, 320px);
+  }
 }
 
 .ubuntu-shell__prompt {
@@ -1504,6 +1520,7 @@ select {
 .app-about,
 .ie-window,
 .run-dialog,
+.file-viewer,
 .clock-properties,
 .msconfig,
 .network-status,
@@ -1525,6 +1542,7 @@ select {
 .control-panel-app,
 .ie-window,
 .run-dialog,
+.file-viewer,
 .clock-properties,
 .msconfig,
 .network-status,
@@ -1539,6 +1557,7 @@ select {
 .clock-properties h2,
 .msconfig h2,
 .network-status h2,
+.file-viewer h2,
 .app-about h2,
 .app-about h3 {
   margin: 0;
@@ -1556,6 +1575,8 @@ select {
 .msconfig__status,
 .network-status__subtitle,
 .network-status__status,
+.file-viewer__meta,
+.file-viewer__status,
 .app-about p,
 .ie-window__status,
 .folder-window__address-value,
@@ -1704,10 +1725,36 @@ select {
 .control-panel-app__status,
 .ie-window__status,
 .run-dialog__status,
-.network-status__status {
+.network-status__status,
+.file-viewer__status {
   border-top: 1px solid #808080;
   padding-top: 4px;
   font-size: 11px;
+}
+
+.file-viewer__header {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.file-viewer__meta {
+  font-size: 11px;
+  color: #404040;
+  word-break: break-all;
+}
+
+.file-viewer__content {
+  flex: 1;
+  margin: 0;
+  border: 2px solid;
+  border-color: #808080 #ffffff #ffffff #808080;
+  background: #ffffff;
+  padding: 6px;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-family: "Lucida Console", "Courier New", monospace;
+  font-size: 12px;
 }
 
 .app-about__docs {

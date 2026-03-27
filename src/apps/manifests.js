@@ -46,31 +46,54 @@ function createAboutContent(fileLayer) {
   return wrapper;
 }
 
-function createMyComputerContent(launchApp) {
+function resolveFileSystemOsKey(candidateProfile) {
+  const normalized = String(candidateProfile || "")
+    .trim()
+    .toLowerCase();
+
+  if (normalized.includes("linux") || normalized.includes("ubuntu")) {
+    return "linux";
+  }
+
+  if (normalized.includes("xp")) {
+    return "winxp";
+  }
+
+  return "win95";
+}
+
+function createMyComputerContent(launchApp, fileLayer, { desktopProfile } = {}) {
+  const osKey = resolveFileSystemOsKey(desktopProfile);
   const biosProfile = readBiosProfile();
   const floppyLabel = biosProfile.floppyEnabled
     ? "3 1/2 Floppy (A:)"
     : "3 1/2 Floppy (A:) (Disabled in BIOS)";
+  const mountedVolumes = fileLayer.listMountRoots({ os: osKey }).map((volume, index) => {
+    const partition = volume.partition || {};
+    const partitionDetails = [partition.fileSystem, partition.devicePath]
+      .filter((value) => typeof value === "string" && value.trim())
+      .join(" · ");
+
+    return {
+      id: `my-computer-volume-${index + 1}`,
+      label: partitionDetails ? `${volume.label} ${partitionDetails}` : volume.label,
+      iconKey: "drive_hdd",
+      nodeType: "directory",
+      path: volume.path,
+      os: osKey,
+    };
+  });
 
   return createFolderWindow({
     title: "My Computer",
-    subtitle: "Classic workstation: floppy + dual IDE drives.",
+    subtitle: "Tri-boot SYS drive + shared exFAT storage.",
     items: [
       {
         id: "my-computer-floppy",
         label: floppyLabel,
         iconKey: "drive_floppy",
       },
-      {
-        id: "my-computer-sys",
-        label: "SYS (C:) 128MB",
-        iconKey: "drive_hdd",
-      },
-      {
-        id: "my-computer-storage",
-        label: "STORAGE (D:) 512MB",
-        iconKey: "drive_hdd",
-      },
+      ...mountedVolumes,
       {
         id: "my-computer-ie",
         label: "Internet Explorer",
@@ -112,11 +135,261 @@ function createMyComputerContent(launchApp) {
       },
     ],
     onItemActivate: (item) => {
+      if (item.path) {
+        launchApp("mock-file-browser", {
+          os: item.os || osKey,
+          path: item.path,
+          title: item.label,
+        });
+        return true;
+      }
+
       if (item.appId) {
         launchApp(item.appId, item.launchPayload);
+        return true;
       }
+
+      return false;
     },
   });
+}
+
+function createMockFileBrowserContent({
+  fileLayer,
+  launchApp,
+  launchPayload = {},
+  desktopProfile,
+} = {}) {
+  const osKey = resolveFileSystemOsKey(launchPayload.os || desktopProfile);
+  const requestedPath =
+    typeof launchPayload.path === "string" ? launchPayload.path.trim() : "";
+  const listing =
+    fileLayer.listDirectory({
+      os: osKey,
+      path: requestedPath,
+    }) || fileLayer.listDirectory({ os: osKey });
+
+  if (!listing) {
+    const errorRoot = document.createElement("section");
+    errorRoot.className = "file-viewer";
+    errorRoot.innerHTML = `
+      <header class="file-viewer__header">
+        <h2>File Explorer</h2>
+      </header>
+      <pre class="file-viewer__content">Path is unavailable in the current mock filesystem map.</pre>
+      <p class="file-viewer__status">Missing path: ${requestedPath || "(root)"}</p>
+    `;
+    return errorRoot;
+  }
+
+  const explorerItems = (listing.entries || []).map((entry) => ({
+    id: entry.id || `${entry.type}-${entry.path || entry.label}`,
+    label: entry.label || entry.name || entry.path || "Unknown",
+    iconKey: entry.iconKey || (entry.type === "directory" ? "folder" : "document"),
+    nodeType: entry.nodeType || entry.type,
+    path: entry.path,
+    os: osKey,
+    launchAppId: entry.launchAppId || null,
+    launchPayload: entry.launchPayload,
+  }));
+
+  const title =
+    (typeof launchPayload.title === "string" && launchPayload.title.trim()) ||
+    listing.path ||
+    "File Explorer";
+  const subtitle = listing.partition
+    ? `${listing.partition.volumeName} · ${listing.partition.fileSystem} · ${listing.partition.devicePath || "virtual-device"}`
+    : `Mounted volumes for ${osKey}`;
+
+  return createFolderWindow({
+    title,
+    subtitle,
+    items: explorerItems,
+    onItemActivate(item) {
+      if (!item || typeof item !== "object") {
+        return false;
+      }
+
+      if (item.nodeType === "directory" || item.nodeType === "mount") {
+        launchApp("mock-file-browser", {
+          os: item.os || osKey,
+          path: item.path,
+          title: item.label,
+        });
+        return true;
+      }
+
+      if (item.launchAppId) {
+        launchApp(item.launchAppId, item.launchPayload);
+        return true;
+      }
+
+      if (!item.path) {
+        return false;
+      }
+
+      launchApp("mock-file-viewer", {
+        os: item.os || osKey,
+        path: item.path,
+        title: item.label,
+      });
+
+      return true;
+    },
+    onItemProperties(item) {
+      if (!item?.path) {
+        return;
+      }
+
+      launchApp("mock-file-viewer", {
+        os: item.os || osKey,
+        path: item.path,
+        title: item.label,
+        mode: "properties",
+      });
+    },
+  });
+}
+
+function createMockFileViewerContent({
+  fileLayer,
+  launchPayload = {},
+  launchApp,
+  desktopProfile,
+} = {}) {
+  const osKey = resolveFileSystemOsKey(launchPayload.os || desktopProfile);
+  const targetPath =
+    typeof launchPayload.path === "string" ? launchPayload.path.trim() : "";
+  const root = document.createElement("section");
+  root.className = "file-viewer";
+  root.innerHTML = `
+    <header class="file-viewer__header">
+      <h2>File Viewer</h2>
+      <p class="file-viewer__meta" data-file-viewer-meta>Loading...</p>
+    </header>
+    <pre class="file-viewer__content" data-file-viewer-content>Loading content...</pre>
+    <p class="file-viewer__status" data-file-viewer-status>Ready.</p>
+  `;
+
+  const metadataNode = root.querySelector("[data-file-viewer-meta]");
+  const contentNode = root.querySelector("[data-file-viewer-content]");
+  const statusNode = root.querySelector("[data-file-viewer-status]");
+  const isPropertiesMode = launchPayload.mode === "properties";
+  let disposed = false;
+
+  function setStatus(text) {
+    if (statusNode) {
+      statusNode.textContent = text;
+    }
+  }
+
+  function setMetadata(text) {
+    if (metadataNode) {
+      metadataNode.textContent = text;
+    }
+  }
+
+  function setContent(text) {
+    if (contentNode) {
+      contentNode.textContent = text;
+    }
+  }
+
+  async function renderFileView() {
+    if (!targetPath) {
+      setMetadata("No target path.");
+      setContent("No path payload was provided.");
+      setStatus("Unable to open file.");
+      return;
+    }
+
+    setMetadata(`${osKey} · ${targetPath}`);
+    setStatus("Opening...");
+
+    const accessResult = await fileLayer.accessPath({
+      os: osKey,
+      path: targetPath,
+    });
+
+    if (disposed) {
+      return;
+    }
+
+    if (!accessResult || typeof accessResult !== "object") {
+      setContent("Unknown file access result.");
+      setStatus("Access failed.");
+      return;
+    }
+
+    if (accessResult.kind === "action" && accessResult.actionType === "launch-app") {
+      if (typeof accessResult.appId === "string" && accessResult.appId) {
+        launchApp(accessResult.appId, accessResult.launchPayload);
+        setContent(`Delegated to app launch: ${accessResult.appId}`);
+        setStatus("Executed mapped action.");
+        return;
+      }
+
+      setContent("Mapped action is missing appId.");
+      setStatus("Action mapping error.");
+      return;
+    }
+
+    if (accessResult.kind === "directory") {
+      const listingEntries = accessResult.listing?.entries || [];
+      const directoryPreview =
+        listingEntries.length > 0
+          ? listingEntries
+              .map((entry) =>
+                entry.type === "directory" ? `${entry.label}/` : entry.label,
+              )
+              .join("\n")
+          : "(empty directory)";
+
+      setContent(directoryPreview);
+      setStatus("Directory listed.");
+      return;
+    }
+
+    if (accessResult.kind === "file") {
+      const sourceToken = accessResult.simulated
+        ? `${accessResult.source} (simulated)`
+        : accessResult.source;
+      const partitionLabel = accessResult.partition?.volumeName || "unknown";
+      setMetadata(`${targetPath} · ${partitionLabel} · ${sourceToken}`);
+
+      if (isPropertiesMode) {
+        setContent(
+          [
+            `Path: ${targetPath}`,
+            `OS: ${osKey}`,
+            `Source: ${sourceToken}`,
+            `Partition: ${partitionLabel}`,
+            `MIME: ${accessResult.mimeType || "text/plain"}`,
+          ].join("\n"),
+        );
+        setStatus("Properties loaded.");
+        return;
+      }
+
+      setContent(String(accessResult.content || ""));
+      setStatus(accessResult.simulated ? "Opened simulated file." : "Opened file.");
+      return;
+    }
+
+    setContent(
+      accessResult.reason || "Path is unavailable in the current filesystem map.",
+    );
+    setStatus("Missing path.");
+  }
+
+  void renderFileView();
+
+  return {
+    element: root,
+    dispose() {
+      disposed = true;
+    },
+  };
 }
 
 function createRecycleBinContent() {
@@ -2014,7 +2287,11 @@ function createRunDialogContent({ launchApp, eventBus, windowManager, launchPayl
   };
 }
 
-export function createDefaultManifests({ fileLayer, webApps = [] } = {}) {
+export function createDefaultManifests({
+  fileLayer,
+  webApps = [],
+  desktopProfile = "win95",
+} = {}) {
   const manifests = [
     {
       id: "my-computer",
@@ -2028,7 +2305,52 @@ export function createDefaultManifests({ fileLayer, webApps = [] } = {}) {
         minWidth: 420,
         minHeight: 300,
       },
-      createContent: ({ launchApp }) => createMyComputerContent(launchApp),
+      createContent: ({ launchApp }) =>
+        createMyComputerContent(launchApp, fileLayer, {
+          desktopProfile,
+        }),
+    },
+    {
+      id: "mock-file-browser",
+      title: "File Explorer",
+      iconKey: "folder",
+      placements: ["start"],
+      startGroup: "special",
+      hidden: true,
+      window: {
+        width: 700,
+        height: 460,
+        minWidth: 460,
+        minHeight: 300,
+      },
+      createContent: ({ launchPayload, launchApp }) =>
+        createMockFileBrowserContent({
+          fileLayer,
+          launchPayload,
+          launchApp,
+          desktopProfile,
+        }),
+    },
+    {
+      id: "mock-file-viewer",
+      title: "File Viewer",
+      iconKey: "document",
+      placements: ["start"],
+      startGroup: "special",
+      hidden: true,
+      window: {
+        width: 680,
+        height: 500,
+        minWidth: 440,
+        minHeight: 320,
+      },
+      createContent: ({ launchPayload, launchApp }) =>
+        createMockFileViewerContent({
+          fileLayer,
+          launchPayload,
+          launchApp,
+          desktopProfile,
+        }),
     },
     {
       id: "recycle-bin",

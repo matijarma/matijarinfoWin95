@@ -4,9 +4,9 @@ import {
 } from "../core/system-preferences/index.js";
 
 const UBUNTU_SYSTEM_ID = "desktop-ubuntu-server";
-const SHELL_PROMPT = "matija@portfolio-server:~$";
 const SHELL_USER = "matija";
 const SHELL_HOSTNAME = "portfolio-server";
+const SHELL_START_DIRECTORY = "/";
 const KERNEL_SIGNATURE = "Linux portfolio-server 5.15.0-portfolio #1 SMP x86_64 GNU/Linux";
 const SHELL_HISTORY_STORAGE_KEY = "ubuntu-server.shell.history.v1";
 const SHELL_HISTORY_MAX_ENTRIES = 300;
@@ -99,6 +99,80 @@ function splitCommand(commandText) {
     .filter(Boolean);
 }
 
+function normalizeLinuxPath(pathInput) {
+  const sanitized = String(pathInput || "")
+    .trim()
+    .replaceAll("\\", "/");
+
+  if (!sanitized) {
+    return null;
+  }
+
+  const withLeadingSlash = sanitized.startsWith("/") ? sanitized : `/${sanitized}`;
+  const sourceSegments = withLeadingSlash.split("/").filter(Boolean);
+  const normalizedSegments = [];
+
+  for (const segment of sourceSegments) {
+    if (!segment || segment === ".") {
+      continue;
+    }
+
+    if (segment === "..") {
+      if (normalizedSegments.length > 0) {
+        normalizedSegments.pop();
+      }
+      continue;
+    }
+
+    normalizedSegments.push(segment);
+  }
+
+  return normalizedSegments.length === 0 ? "/" : `/${normalizedSegments.join("/")}`;
+}
+
+function resolveLinuxPath(inputPath, currentDirectory = "/") {
+  const sourcePath = String(inputPath || "").trim();
+
+  if (!sourcePath || sourcePath === ".") {
+    return normalizeLinuxPath(currentDirectory) || "/";
+  }
+
+  if (sourcePath === "~") {
+    return "/";
+  }
+
+  if (sourcePath.startsWith("~/")) {
+    return normalizeLinuxPath(`/${sourcePath.slice(2)}`);
+  }
+
+  if (sourcePath.startsWith("/")) {
+    return normalizeLinuxPath(sourcePath);
+  }
+
+  const baseDirectory = normalizeLinuxPath(currentDirectory) || "/";
+  return normalizeLinuxPath(
+    baseDirectory === "/"
+      ? `/${sourcePath}`
+      : `${baseDirectory}/${sourcePath}`,
+  );
+}
+
+function splitLinuxPath(pathInput) {
+  const normalizedPath = normalizeLinuxPath(pathInput);
+
+  if (!normalizedPath || normalizedPath === "/") {
+    return [];
+  }
+
+  return normalizedPath.slice(1).split("/").filter(Boolean);
+}
+
+function formatShellPrompt(currentDirectory) {
+  const normalizedPath = normalizeLinuxPath(currentDirectory) || "/";
+  const displayPath = normalizedPath === `/home/${SHELL_USER}` ? "~" : normalizedPath;
+  return `${SHELL_USER}@${SHELL_HOSTNAME}:${displayPath}$`;
+}
+
 function getBiosLineDelayMs(line) {
   if (!line) {
     return 220;
@@ -175,6 +249,7 @@ function clampShellHistory(historyEntries) {
 
 export function createUbuntuServerShell({
   root,
+  fileLayer,
   requestSystemSwitch,
   onRequestSystemSwitch,
   switchContext,
@@ -187,8 +262,19 @@ export function createUbuntuServerShell({
   let bootedAt = 0;
   let activeInput = null;
   let activeOutput = null;
-  let activeTerminal = null;
+  let currentDirectory = SHELL_START_DIRECTORY;
   const storageRef = getWindowLocalStorage();
+  const linuxMountRoots =
+    typeof fileLayer?.listMountRoots === "function"
+      ? fileLayer.listMountRoots({ os: "linux" })
+      : [];
+  const linuxMountPaths = linuxMountRoots
+    .map((entry) => normalizeLinuxPath(entry.path))
+    .filter(Boolean);
+  const linuxMountPathsByLength = [...linuxMountPaths].sort(
+    (leftPath, rightPath) => rightPath.length - leftPath.length,
+  );
+  const etcVirtualFiles = new Map(Object.entries(FILES));
   let commandHistory = clampShellHistory(readShellHistoryFromStorage(storageRef));
   let historyNavigationIndex = -1;
   let historyDraftValue = "";
@@ -225,7 +311,6 @@ export function createUbuntuServerShell({
     clearCleanup();
     activeInput = null;
     activeOutput = null;
-    activeTerminal = null;
   }
 
   function appendOutputLine(text, variant = "plain") {
@@ -238,8 +323,8 @@ export function createUbuntuServerShell({
     line.textContent = text;
     activeOutput.append(line);
 
-    if (activeTerminal instanceof HTMLElement) {
-      activeTerminal.scrollTop = activeTerminal.scrollHeight;
+    if (activeOutput instanceof HTMLElement) {
+      activeOutput.scrollTop = activeOutput.scrollHeight;
     }
   }
 
@@ -279,6 +364,17 @@ export function createUbuntuServerShell({
 
     activeInput.value = value;
     placeCursorAtInputEnd();
+  }
+
+  function enforceInputFocus() {
+    scheduleTimeout(() => {
+      if (!(activeInput instanceof HTMLInputElement)) {
+        return;
+      }
+
+      activeInput.focus();
+      placeCursorAtInputEnd();
+    }, 0);
   }
 
   function resetHistoryNavigationState() {
@@ -337,6 +433,177 @@ export function createUbuntuServerShell({
     }
   }
 
+  function getPrompt() {
+    return formatShellPrompt(currentDirectory);
+  }
+
+  function resolveTargetPath(pathInput) {
+    return resolveLinuxPath(pathInput, currentDirectory);
+  }
+
+  function findOwningMountPath(pathInput) {
+    const normalizedPath = normalizeLinuxPath(pathInput);
+
+    if (!normalizedPath) {
+      return null;
+    }
+
+    for (const mountPath of linuxMountPathsByLength) {
+      if (normalizedPath === mountPath || normalizedPath.startsWith(`${mountPath}/`)) {
+        return mountPath;
+      }
+    }
+
+    return null;
+  }
+
+  function collectMountChildDirectoryNames(parentPath) {
+    const normalizedParentPath = normalizeLinuxPath(parentPath);
+
+    if (!normalizedParentPath) {
+      return [];
+    }
+
+    const parentSegments = splitLinuxPath(normalizedParentPath);
+    const childNameSet = new Set();
+
+    for (const mountPath of linuxMountPaths) {
+      const mountSegments = splitLinuxPath(mountPath);
+
+      if (mountSegments.length <= parentSegments.length) {
+        continue;
+      }
+
+      let prefixMatches = true;
+
+      for (let index = 0; index < parentSegments.length; index += 1) {
+        if (mountSegments[index] !== parentSegments[index]) {
+          prefixMatches = false;
+          break;
+        }
+      }
+
+      if (!prefixMatches) {
+        continue;
+      }
+
+      childNameSet.add(mountSegments[parentSegments.length]);
+    }
+
+    return Array.from(childNameSet).sort((leftName, rightName) =>
+      leftName.localeCompare(rightName),
+    );
+  }
+
+  function listVirtualDirectoryEntries(pathInput) {
+    const normalizedPath = normalizeLinuxPath(pathInput);
+
+    if (!normalizedPath) {
+      return null;
+    }
+
+    if (normalizedPath === "/etc") {
+      const fileEntries = [];
+
+      for (const absolutePath of etcVirtualFiles.keys()) {
+        const pathSegments = absolutePath.split("/").filter(Boolean);
+        const fileName = pathSegments[pathSegments.length - 1];
+
+        if (!fileName) {
+          continue;
+        }
+
+        fileEntries.push({
+          name: fileName,
+          label: fileName,
+          type: "file",
+        });
+      }
+
+      return fileEntries.sort((left, right) => left.name.localeCompare(right.name));
+    }
+
+    const mountChildren = collectMountChildDirectoryNames(normalizedPath);
+    const virtualEntries = [];
+
+    if (normalizedPath === "/") {
+      virtualEntries.push({
+        name: "etc",
+        label: "etc",
+        type: "directory",
+      });
+    }
+
+    for (const childName of mountChildren) {
+      virtualEntries.push({
+        name: childName,
+        label: childName,
+        type: "directory",
+      });
+    }
+
+    if (virtualEntries.length === 0) {
+      return null;
+    }
+
+    return virtualEntries.sort((left, right) => {
+      if (left.type !== right.type) {
+        return left.type === "directory" ? -1 : 1;
+      }
+
+      return left.name.localeCompare(right.name);
+    });
+  }
+
+  function resolveDirectoryListing(pathInput) {
+    const absolutePath = resolveTargetPath(pathInput);
+
+    if (!absolutePath) {
+      return null;
+    }
+
+    const owningMountPath = findOwningMountPath(absolutePath);
+
+    if (owningMountPath && typeof fileLayer?.listDirectory === "function") {
+      const directoryListing = fileLayer.listDirectory({
+        os: "linux",
+        path: absolutePath,
+      });
+
+      if (directoryListing) {
+        return {
+          path: absolutePath,
+          source: "filesystem",
+          entries: directoryListing.entries || [],
+        };
+      }
+    }
+
+    const virtualEntries = listVirtualDirectoryEntries(absolutePath);
+
+    if (virtualEntries) {
+      return {
+        path: absolutePath,
+        source: "virtual",
+        entries: virtualEntries,
+      };
+    }
+
+    return null;
+  }
+
+  function formatLsEntries(entries = []) {
+    return entries
+      .map((entry) => {
+        const label = entry.label || entry.name || entry.path || "";
+        const typeToken = entry.nodeType || entry.type;
+        const isDirectory = typeToken === "directory" || typeToken === "mount";
+        return isDirectory ? `${label}/` : label;
+      })
+      .filter(Boolean)
+      .join("  ");
+  }
+
   function requestTargetSystemSwitch(targetEntry) {
     if (!targetEntry) {
       appendOutputLine("Missing target operating system.", "error");
@@ -347,7 +614,7 @@ export function createUbuntuServerShell({
       appendOutputLine("Rebooting Ubuntu Server...", "status");
       scheduleTimeout(() => {
         if (!disposed) {
-          startPowerOnSequence({ autoContinueBios: true });
+          startPowerOnSequence({ autoContinueBios: false });
         }
       }, 260);
       return;
@@ -364,7 +631,7 @@ export function createUbuntuServerShell({
         requestSystemSwitch(targetEntry.id, {
           source: "ubuntu-shell-command",
           context: {
-            autoBoot: true,
+            autoBoot: false,
             reboot: true,
           },
           forceRemount: true,
@@ -401,12 +668,19 @@ export function createUbuntuServerShell({
     appendOutputLine("hostname             Show host name");
     appendOutputLine("uname [-a]           Show kernel signature");
     appendOutputLine("pwd                  Show current directory");
+    appendOutputLine("cd [path]            Change directory");
     appendOutputLine("ls [path]            List available entries");
-    appendOutputLine("cat <file>           Show file content (/etc/motd, /etc/os-release)");
+    appendOutputLine("cat <file>           Show file content");
     appendOutputLine("oslist               List installed operating systems");
     appendOutputLine("boot <target>        Reboot into target (win95, winxp, ubuntu)");
     appendOutputLine("reboot [target]      Reboot current or target OS");
     appendOutputLine("shutdown             Halt system and return to power screen");
+    appendOutputLine("");
+    appendOutputLine("Linux mounts from mock filesystem:", "status");
+
+    for (const mountRoot of linuxMountRoots) {
+      appendOutputLine(`- ${mountRoot.path} -> ${mountRoot.partition?.volumeName || "volume"}`);
+    }
   }
 
   function printInstalledOs() {
@@ -421,7 +695,7 @@ export function createUbuntuServerShell({
     appendOutputLine("Use: boot <target>");
   }
 
-  function executeCommand(commandText) {
+  async function executeCommand(commandText) {
     const parts = splitCommand(commandText);
     const command = normalizeToken(parts[0]);
     const args = parts.slice(1);
@@ -483,24 +757,53 @@ export function createUbuntuServerShell({
     }
 
     if (command === "pwd") {
-      appendOutputLine(`/home/${SHELL_USER}`);
+      appendOutputLine(currentDirectory);
+      return;
+    }
+
+    if (command === "cd") {
+      const targetInput = args[0] || "/";
+      const resolvedListing = resolveDirectoryListing(targetInput);
+
+      if (!resolvedListing) {
+        appendOutputLine(`cd: ${targetInput}: No such file or directory`, "error");
+        return;
+      }
+
+      currentDirectory = resolvedListing.path;
       return;
     }
 
     if (command === "ls") {
-      const targetPath = args[0] || ".";
+      const targetInput = args[0] || ".";
+      const resolvedListing = resolveDirectoryListing(targetInput);
 
-      if (targetPath === "/etc") {
-        appendOutputLine("motd  os-release");
+      if (resolvedListing) {
+        appendOutputLine(formatLsEntries(resolvedListing.entries) || "(empty)");
         return;
       }
 
-      if (targetPath === "." || targetPath === `~` || targetPath === `/home/${SHELL_USER}`) {
-        appendOutputLine("README.md  projects/  /etc/");
+      const absolutePath = resolveTargetPath(targetInput);
+
+      if (absolutePath && typeof fileLayer?.inspectPath === "function") {
+        const inspectedEntry = fileLayer.inspectPath({
+          os: "linux",
+          path: absolutePath,
+        });
+
+        if (inspectedEntry?.type === "file") {
+          appendOutputLine(inspectedEntry.name || targetInput);
+          return;
+        }
+      }
+
+      if (absolutePath && etcVirtualFiles.has(absolutePath)) {
+        const pathSegments = absolutePath.split("/").filter(Boolean);
+        appendOutputLine(pathSegments[pathSegments.length - 1] || absolutePath);
         return;
       }
 
-      appendOutputLine(`ls: cannot access '${targetPath}': No such file or directory`, "error");
+      appendOutputLine(`ls: cannot access '${targetInput}': No such file or directory`, "error");
       return;
     }
 
@@ -512,15 +815,57 @@ export function createUbuntuServerShell({
         return;
       }
 
-      const normalizedFile = targetFile === "motd" ? "/etc/motd" : targetFile;
-      const fileContent = FILES[normalizedFile];
+      const absolutePath =
+        targetFile === "motd"
+          ? "/etc/motd"
+          : targetFile === "os-release"
+            ? "/etc/os-release"
+            : resolveTargetPath(targetFile);
 
-      if (typeof fileContent !== "string") {
+      if (!absolutePath) {
         appendOutputLine(`cat: ${targetFile}: No such file or directory`, "error");
         return;
       }
 
-      appendOutputBlock(fileContent);
+      if (etcVirtualFiles.has(absolutePath)) {
+        appendOutputBlock(etcVirtualFiles.get(absolutePath));
+        return;
+      }
+
+      if (typeof fileLayer?.accessPath !== "function") {
+        appendOutputLine(`cat: ${targetFile}: No such file or directory`, "error");
+        return;
+      }
+
+      const accessResult = await fileLayer.accessPath({
+        os: "linux",
+        path: absolutePath,
+      });
+
+      if (!accessResult || typeof accessResult !== "object") {
+        appendOutputLine(`cat: ${targetFile}: No such file or directory`, "error");
+        return;
+      }
+
+      if (accessResult.kind === "directory") {
+        appendOutputLine(`cat: ${targetFile}: Is a directory`, "error");
+        return;
+      }
+
+      if (accessResult.kind === "action") {
+        appendOutputLine(
+          `cat: ${targetFile}: mapped to action (${accessResult.actionType})`,
+          "error",
+        );
+        return;
+      }
+
+      if (accessResult.kind !== "file") {
+        appendOutputLine(`cat: ${targetFile}: No such file or directory`, "error");
+        return;
+      }
+
+      appendOutputBlock(String(accessResult.content || ""));
       return;
     }
 
@@ -583,15 +928,12 @@ export function createUbuntuServerShell({
     resetView();
     root.className = "shell-root shell-root--desktop";
     root.innerHTML = `
-      <main class="ubuntu-shell" data-testid="ubuntu-shell">
-        <header class="ubuntu-shell__header">
-          Ubuntu Server 22.04 LTS (${SHELL_HOSTNAME})
-        </header>
+      <main class="ubuntu-shell" data-testid="ubuntu-shell" data-ubuntu-shell>
         <section class="ubuntu-shell__terminal" data-ubuntu-terminal>
           <div class="ubuntu-shell__session">
             <div class="ubuntu-shell__output" data-ubuntu-output></div>
             <form class="ubuntu-shell__input" data-ubuntu-form autocomplete="off">
-              <span class="ubuntu-shell__prompt">${SHELL_PROMPT}</span>
+              <span class="ubuntu-shell__prompt" data-ubuntu-prompt>${getPrompt()}</span>
               <input
                 type="text"
                 class="ubuntu-shell__command"
@@ -608,18 +950,27 @@ export function createUbuntuServerShell({
       </main>
     `;
 
-    activeTerminal = root.querySelector("[data-ubuntu-terminal]");
+    const shellNode = root.querySelector("[data-ubuntu-shell]");
     activeOutput = root.querySelector("[data-ubuntu-output]");
     const form = root.querySelector("[data-ubuntu-form]");
+    const promptNode = root.querySelector("[data-ubuntu-prompt]");
     activeInput = root.querySelector("[data-ubuntu-command]");
 
     if (!(form instanceof HTMLFormElement) || !(activeInput instanceof HTMLInputElement)) {
       return;
     }
 
+    const syncPrompt = () => {
+      if (promptNode instanceof HTMLElement) {
+        promptNode.textContent = getPrompt();
+      }
+    };
+
+    currentDirectory = SHELL_START_DIRECTORY;
     bootedAt = Date.now();
+    syncPrompt();
     appendOutputLine("Welcome to Ubuntu Server shell mode.", "status");
-    appendOutputLine("Type `help` for commands. Use `boot win95` or `boot winxp` to switch OS.");
+    appendOutputLine("Type `help` for commands. Shared mock partitions are mounted under /mnt and /dev.");
     appendOutputLine("");
 
     const submitHandler = (event) => {
@@ -627,20 +978,29 @@ export function createUbuntuServerShell({
 
       const rawInput = activeInput.value;
       const nextCommand = rawInput.trim();
-      appendOutputLine(nextCommand ? `${SHELL_PROMPT} ${rawInput}` : SHELL_PROMPT, "command");
+      const commandPrompt = getPrompt();
+      appendOutputLine(nextCommand ? `${commandPrompt} ${rawInput}` : commandPrompt, "command");
 
       if (!nextCommand) {
         activeInput.value = "";
         appendOutputLine("");
         resetHistoryNavigationState();
+        syncPrompt();
         focusInput();
         return;
       }
 
       pushCommandToHistory(nextCommand);
-      executeCommand(nextCommand);
       activeInput.value = "";
       focusInput();
+      void executeCommand(nextCommand)
+        .catch(() => {
+          appendOutputLine("Command failed unexpectedly.", "error");
+        })
+        .finally(() => {
+          syncPrompt();
+          focusInput();
+        });
     };
 
     const inputKeydownHandler = (event) => {
@@ -666,14 +1026,33 @@ export function createUbuntuServerShell({
       }
     };
 
-    const terminalPointerHandler = () => {
-      focusInput();
+    const shellPointerHandler = (event) => {
+      if (!(event.target instanceof Element)) {
+        enforceInputFocus();
+        return;
+      }
+
+      if (!event.target.closest("[data-ubuntu-command]")) {
+        event.preventDefault();
+      }
+
+      enforceInputFocus();
+    };
+
+    const shellClickHandler = () => {
+      enforceInputFocus();
+    };
+
+    const inputBlurHandler = () => {
+      enforceInputFocus();
     };
 
     form.addEventListener("submit", submitHandler);
     activeInput.addEventListener("keydown", inputKeydownHandler);
     activeInput.addEventListener("input", inputHandler);
-    activeTerminal?.addEventListener("pointerdown", terminalPointerHandler);
+    activeInput.addEventListener("blur", inputBlurHandler);
+    shellNode?.addEventListener("pointerdown", shellPointerHandler);
+    shellNode?.addEventListener("click", shellClickHandler);
     focusInput();
     scheduleTimeout(focusInput, 0);
     scheduleTimeout(focusInput, 75);
@@ -682,11 +1061,13 @@ export function createUbuntuServerShell({
       form.removeEventListener("submit", submitHandler);
       activeInput?.removeEventListener("keydown", inputKeydownHandler);
       activeInput?.removeEventListener("input", inputHandler);
-      activeTerminal?.removeEventListener("pointerdown", terminalPointerHandler);
+      activeInput?.removeEventListener("blur", inputBlurHandler);
+      shellNode?.removeEventListener("pointerdown", shellPointerHandler);
+      shellNode?.removeEventListener("click", shellClickHandler);
     });
   }
 
-  function renderBiosPost({ autoContinue = true } = {}) {
+  function renderBiosPost({ autoContinue = false } = {}) {
     resetView();
     root.className = "shell-root shell-root--state";
 
@@ -694,13 +1075,13 @@ export function createUbuntuServerShell({
     const biosPostLines = buildBiosPostLines(biosProfile);
 
     root.innerHTML = `
-      <main class="bios95-screen" data-testid="ubuntu-bios-screen">
+      <main class="bios95-screen" data-testid="os-state-screen">
         <section class="bios95-screen__viewport">
           <pre class="bios95-screen__text" data-bios-output></pre>
           <p class="bios95-screen__error" data-bios-error hidden>Keyboard error or no keyboard present</p>
           <p class="bios95-screen__prompt" data-bios-prompt hidden>Press F1 to continue</p>
         </section>
-        <p class="bios95-screen__hint" data-bios-hint hidden>Initializing boot handoff...</p>
+        <p class="bios95-screen__hint" data-bios-hint hidden>Awaiting keyboard input...</p>
       </main>
     `;
 
@@ -771,7 +1152,7 @@ export function createUbuntuServerShell({
     });
   }
 
-  function startPowerOnSequence({ autoContinueBios = true } = {}) {
+  function startPowerOnSequence({ autoContinueBios = false } = {}) {
     renderBiosPost({ autoContinue: autoContinueBios });
   }
 
@@ -848,11 +1229,11 @@ export function createUbuntuServerShell({
       }
 
       event.preventDefault();
-      startPowerOnSequence({ autoContinueBios: true });
+      startPowerOnSequence({ autoContinueBios: false });
     };
 
     const clickHandler = () => {
-      startPowerOnSequence({ autoContinueBios: true });
+      startPowerOnSequence({ autoContinueBios: false });
     };
 
     window.addEventListener("keydown", keydownHandler);
@@ -867,7 +1248,7 @@ export function createUbuntuServerShell({
   const shouldAutoBoot = switchContext?.autoBoot !== false;
 
   if (shouldAutoBoot) {
-    startPowerOnSequence({ autoContinueBios: true });
+    startPowerOnSequence({ autoContinueBios: false });
   } else {
     renderPowerOff();
   }
@@ -878,7 +1259,7 @@ export function createUbuntuServerShell({
         return;
       }
 
-      startPowerOnSequence({ autoContinueBios: true });
+      startPowerOnSequence({ autoContinueBios: false });
     },
     unmount() {
       disposed = true;

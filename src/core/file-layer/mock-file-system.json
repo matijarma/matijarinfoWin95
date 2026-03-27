@@ -1,0 +1,305 @@
+{
+  "version": 2,
+  "missingBehavior": {
+    "file": {
+      "mode": "simulate",
+      "template": "[SIMULATED FILE]\nPath: {{path}}\nOS: {{os}}\nPartition: {{partitionId}}\n\nNo explicit file mapping exists in mock-file-system.json."
+    },
+    "directory": {
+      "mode": "simulate-empty"
+    }
+  },
+  "documents": [
+    {
+      "id": "mock-fs-map",
+      "name": "mock-file-system.json",
+      "content": "Filesystem tree and access rules are controlled from src/core/file-layer/mock-file-system.json."
+    },
+    {
+      "id": "mock-fs-drives",
+      "name": "DRIVES.TXT",
+      "content": "Configured volumes: C: FAT32 (Win95), D: NTFS (XP), /dev/sda2 ext4 (Linux), S: exFAT (storage)."
+    }
+  ],
+  "disks": [
+    {
+      "id": "sys-drive",
+      "label": "System Drive",
+      "devicePath": "/dev/sda",
+      "description": "Tri-boot drive: Win95 + Linux + XP"
+    },
+    {
+      "id": "storage-drive",
+      "label": "Storage Drive",
+      "devicePath": "/dev/sdb",
+      "description": "Shared exFAT storage volume"
+    }
+  ],
+  "partitions": [
+    {
+      "id": "sys-c-win95",
+      "diskId": "sys-drive",
+      "displayOrder": 1,
+      "label": "Win95 System",
+      "volumeName": "WIN95",
+      "devicePath": "/dev/sda1",
+      "fileSystem": "fat32",
+      "sizeLabel": "2.0 GB",
+      "mounts": {
+        "win95": "C:/",
+        "winxp": "C:/",
+        "linux": "/mnt/c"
+      },
+      "tree": {
+        "type": "directory",
+        "children": [
+          {
+            "type": "directory",
+            "name": "WINDOWS"
+          },
+          {
+            "type": "directory",
+            "name": "PORTFOLIO",
+            "children": [
+              {
+                "type": "file",
+                "name": "WELCOME.TXT",
+                "access": {
+                  "type": "inline-text",
+                  "content": "Welcome to the shared mock filesystem.\nThis file lives on the Win95 FAT32 partition."
+                }
+              },
+              {
+                "type": "file",
+                "name": "ROADMAP.MD",
+                "access": {
+                  "type": "host-file",
+                  "path": "/DEVELOPMENT_PLAN.md"
+                }
+              },
+              {
+                "type": "file",
+                "name": "NOTES.TXT",
+                "access": {
+                  "type": "simulate",
+                  "content": "This is a pure simulation file.\nNo host file exists for this path."
+                }
+              },
+              {
+                "type": "file",
+                "name": "PORTFOLIO.URL",
+                "access": {
+                  "type": "launch-app",
+                  "appId": "internet-explorer",
+                  "launchPayload": {
+                    "url": "https://matijar.info"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "type": "file",
+            "name": "AUTOEXEC.BAT",
+            "access": {
+              "type": "inline-text",
+              "content": "@ECHO OFF\nPROMPT $P$G\nPATH C:\\WINDOWS;C:\\WINDOWS\\COMMAND\nSET TEMP=C:\\TEMP"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "sys-d-winxp",
+      "diskId": "sys-drive",
+      "displayOrder": 2,
+      "label": "XP System",
+      "volumeName": "WINXP",
+      "devicePath": "/dev/sda3",
+      "fileSystem": "ntfs",
+      "sizeLabel": "8.0 GB",
+      "mounts": {
+        "win95": "D:/",
+        "winxp": "D:/",
+        "linux": "/mnt/d"
+      },
+      "tree": {
+        "type": "directory",
+        "children": [
+          {
+            "type": "directory",
+            "name": "Program Files"
+          },
+          {
+            "type": "directory",
+            "name": "Documents and Settings",
+            "children": [
+              {
+                "type": "directory",
+                "name": "Matija",
+                "children": [
+                  {
+                    "type": "directory",
+                    "name": "Desktop",
+                    "children": [
+                      {
+                        "type": "file",
+                        "name": "QA-CHECKLIST.MD",
+                        "access": {
+                          "type": "host-file",
+                          "path": "/QA_CHECKLIST.md"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "file",
+            "name": "BOOT.INI",
+            "access": {
+              "type": "inline-text",
+              "content": "[boot loader]\ntimeout=10\ndefault=multi(0)disk(0)rdisk(0)partition(2)\\WINDOWS\n[operating systems]\nWindows XP SP2=\"Windows XP Professional\" /fastdetect\nWindows 95=\"Microsoft Windows 95\""
+            }
+          },
+          {
+            "type": "file",
+            "name": "CHANGELOG.MD",
+            "access": {
+              "type": "host-file",
+              "path": "/DEVELOPMENT_JOURNAL.md"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "sys-sda2-linux",
+      "diskId": "sys-drive",
+      "displayOrder": 3,
+      "label": "Linux Root",
+      "volumeName": "LINUXROOT",
+      "devicePath": "/dev/sda2",
+      "fileSystem": "ext4",
+      "sizeLabel": "6.0 GB",
+      "mounts": {
+        "win95": "L:/",
+        "winxp": "L:/",
+        "linux": "/dev/sda2"
+      },
+      "tree": {
+        "type": "directory",
+        "children": [
+          {
+            "type": "directory",
+            "name": "home",
+            "children": [
+              {
+                "type": "directory",
+                "name": "matija",
+                "children": [
+                  {
+                    "type": "file",
+                    "name": "README.txt",
+                    "access": {
+                      "type": "inline-text",
+                      "content": "Linux ext4 partition mounted as /dev/sda2.\nShared browsing is enabled from Win95/XP through L:."
+                    }
+                  },
+                  {
+                    "type": "file",
+                    "name": "agents.md",
+                    "access": {
+                      "type": "host-file",
+                      "path": "/agents.md"
+                    }
+                  },
+                  {
+                    "type": "file",
+                    "name": "gemini.md",
+                    "access": {
+                      "type": "host-file",
+                      "path": "/gemini.md"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "directory",
+            "name": "etc",
+            "children": [
+              {
+                "type": "file",
+                "name": "fstab",
+                "access": {
+                  "type": "inline-text",
+                  "content": "/dev/sda1 /mnt/c fat32 defaults 0 0\n/dev/sda3 /mnt/d ntfs defaults 0 0\n/dev/sda2 / ext4 defaults 0 1\n/dev/sdb1 /mnt/storage exfat defaults 0 0"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "storage-exfat",
+      "diskId": "storage-drive",
+      "displayOrder": 4,
+      "label": "Shared Storage",
+      "volumeName": "STORAGE",
+      "devicePath": "/dev/sdb1",
+      "fileSystem": "exfat",
+      "sizeLabel": "64.0 GB",
+      "mounts": {
+        "win95": "S:/",
+        "winxp": "S:/",
+        "linux": "/mnt/storage"
+      },
+      "tree": {
+        "type": "directory",
+        "children": [
+          {
+            "type": "directory",
+            "name": "Docs",
+            "children": [
+              {
+                "type": "file",
+                "name": "MATIJAR-CV.MD",
+                "access": {
+                  "type": "host-file",
+                  "path": "/cv/matijaradeljak.md"
+                }
+              }
+            ]
+          },
+          {
+            "type": "directory",
+            "name": "Shared",
+            "children": [
+              {
+                "type": "file",
+                "name": "README.TXT",
+                "access": {
+                  "type": "inline-text",
+                  "content": "This exFAT partition is intended for cross-OS exchange."
+                }
+              },
+              {
+                "type": "file",
+                "name": "SIMULATED-ONLY.LOG",
+                "access": {
+                  "type": "simulate",
+                  "content": "Generated by mock rules.\nThe file does not map to a host asset."
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -49,10 +49,12 @@ export async function mountDesktopRuntime(
   } = {},
 ) {
   const resolvedDesktopProfile = resolveDesktopProfileId(systemId, desktopProfile);
+  const fileLayer = await createFileLayer();
 
   if (resolvedDesktopProfile === "ubuntu-server") {
     const ubuntuShell = createUbuntuServerShell({
       root,
+      fileLayer,
       requestSystemSwitch,
       switchContext,
       onRequestSystemSwitch,
@@ -65,7 +67,6 @@ export async function mountDesktopRuntime(
 
   const eventBus = createEventBus();
   const mediaEngine = createMediaEngine({ eventBus });
-  const fileLayer = createFileLayer();
   const windowManager = createWindowManager({ eventBus });
   const webApps = await loadWebAppConfigs();
   const appRegistry = createAppRegistry({
@@ -76,7 +77,14 @@ export async function mountDesktopRuntime(
   });
   const kernel = createOSKernel({ eventBus });
 
-  appRegistry.registerApps(createDefaultManifests({ fileLayer, mediaEngine, webApps }));
+  appRegistry.registerApps(
+    createDefaultManifests({
+      fileLayer,
+      mediaEngine,
+      webApps,
+      desktopProfile: resolvedDesktopProfile,
+    }),
+  );
 
   const shell = createDesktopShell({
     root,
@@ -224,10 +232,6 @@ export async function mountDesktopRuntime(
   );
 
   shell.render(kernel.getState());
-
-  if (switchContext?.autoBoot === true) {
-    shell.requestPowerOn?.();
-  }
 
   return () => {
     cleanupFns.forEach((cleanupFn) => cleanupFn());

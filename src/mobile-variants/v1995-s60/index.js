@@ -1,126 +1,129 @@
-import {
-  APP_MENU_ITEMS,
-  BATTERY_LEVEL_SEQUENCE,
-  BOOT_LINES,
-  BROWSER_BOOKMARKS,
-  CALENDAR_EVENTS,
-  CALL_LOG,
-  CONTACTS,
-  FILE_MANAGER_TREE,
-  GALLERY_ITEMS,
-  MESSAGE_THREADS,
-  MUSIC_LIBRARY,
-  NOTES,
-  OPERATOR_SEQUENCE,
-  PROFILE_PRESETS,
-  SETTINGS_CATEGORIES,
-  SIGNAL_LEVEL_SEQUENCE,
-  STANDBY_SHORTCUTS,
-  cloneFileTree,
-  cloneSettingsCategories,
-  formatClockDate,
-  formatClockTime,
-  formatLongDate,
-  formatTrackLength,
-} from "./data.js";
-import {
-  renderBrowserApp,
-  renderCalendarApp,
-  renderContactsApp,
-  renderExtrasApp,
-  renderFileManagerApp,
-  renderGalleryApp,
-  renderHomeScreen,
-  renderMenuGridScreen,
-  renderMessagesApp,
-  renderMusicApp,
-  renderNotesApp,
-  renderSettingsApp,
-  renderStandbyScreen,
-} from "./apps.js";
-
-const BOOT_LINE_STEP_MS = 360;
-const BOOT_FINISH_DELAY_MS = 520;
-const CLOCK_TICK_MS = 1000;
-const SOFTKEY_FALLBACK_TIMEOUT_MS = 2400;
-const MENU_GRID_COLUMNS = 3;
-const HOME_GRID_COLUMNS = 2;
-
-const CONTACT_TABS = Object.freeze([
-  { id: "all", label: "All" },
-  { id: "favorites", label: "Fav" },
-  { id: "sim", label: "SIM" },
+const BOOT_LINES = Object.freeze([
+  "Nokia RM-133 / Symbian OS 9.1",
+  "Kernel image loaded.",
+  "Applying platform security policy...",
+  "Mounting C:, E:, Z: volumes...",
+  "Starting telephony server...",
+  "Initializing messaging services...",
+  "Starting Avkon environment...",
+  "Loading active standby plugins...",
+  "Ready.",
 ]);
 
-const MESSAGE_FOLDERS = Object.freeze([
-  { id: "inbox", label: "Inbox" },
-  { id: "sent", label: "Sent" },
-  { id: "drafts", label: "Drafts" },
+const MENU_APPS = Object.freeze([
+  Object.freeze({ id: "contacts", label: "Contacts", subtitle: "Phonebook", token: "CT" }),
+  Object.freeze({ id: "messaging", label: "Messaging", subtitle: "SMS / Email", token: "MS" }),
+  Object.freeze({ id: "calendar", label: "Calendar", subtitle: "Agenda", token: "CL" }),
+  Object.freeze({ id: "music", label: "Music", subtitle: "Player", token: "MU" }),
+  Object.freeze({ id: "browser", label: "Web", subtitle: "Browser", token: "WB" }),
+  Object.freeze({ id: "gallery", label: "Gallery", subtitle: "Images", token: "GA" }),
+  Object.freeze({ id: "notes", label: "Notes", subtitle: "Text", token: "NT" }),
+  Object.freeze({ id: "settings", label: "Settings", subtitle: "Control panel", token: "ST" }),
+  Object.freeze({ id: "files", label: "File mgr", subtitle: "Storage", token: "FM" }),
+  Object.freeze({ id: "connectivity", label: "Connectivity", subtitle: "Network", token: "CN" }),
+  Object.freeze({ id: "tools", label: "Tools", subtitle: "Utilities", token: "TL" }),
+  Object.freeze({ id: "clock", label: "Clock", subtitle: "Alarms", token: "CK" }),
 ]);
 
-const CALENDAR_TABS = Object.freeze([
-  { id: "day", label: "Day" },
-  { id: "week", label: "Week" },
-  { id: "month", label: "Month" },
-  { id: "agenda", label: "Agenda" },
+const SHORTCUT_APP_IDS = Object.freeze([
+  "contacts",
+  "messaging",
+  "calendar",
+  "music",
 ]);
 
-const GALLERY_ALBUMS = Object.freeze([
-  { id: "camera", label: "Camera" },
-  { id: "saved", label: "Saved" },
-  { id: "received", label: "Received" },
+const CONTACTS = Object.freeze([
+  Object.freeze({ name: "Ana Kovac", number: "+385 91 240 118", type: "Mobile" }),
+  Object.freeze({ name: "Boris Marin", number: "+385 98 771 622", type: "Mobile" }),
+  Object.freeze({ name: "Daria Novak", number: "+385 99 560 930", type: "Work" }),
+  Object.freeze({ name: "Ivan Horvat", number: "+385 95 310 744", type: "Mobile" }),
+  Object.freeze({ name: "Lana Peric", number: "+385 92 600 124", type: "Home" }),
+  Object.freeze({ name: "Marin Jelic", number: "+385 97 455 811", type: "Work" }),
+  Object.freeze({ name: "Mia Vuk", number: "+385 93 980 022", type: "Mobile" }),
+  Object.freeze({ name: "Nikola Simic", number: "+385 91 662 540", type: "Mobile" }),
+  Object.freeze({ name: "Petra Basic", number: "+385 95 218 311", type: "Home" }),
+  Object.freeze({ name: "Tin Rado", number: "+385 97 414 882", type: "Mobile" }),
 ]);
 
-const BROWSER_TABS = Object.freeze([
-  { id: "bookmarks", label: "Bookmarks" },
-  { id: "history", label: "History" },
+const MESSAGE_SEED = Object.freeze([
+  Object.freeze({ from: "Ana Kovac", body: "Meet at the station at 18:30.", time: "17:11", unread: true }),
+  Object.freeze({ from: "Mia Vuk", body: "Sent you the gallery photos.", time: "14:42", unread: false }),
+  Object.freeze({ from: "Operator", body: "Your prepaid bonus is active.", time: "11:05", unread: false }),
+  Object.freeze({ from: "Boris Marin", body: "Call me when free.", time: "Yesterday", unread: false }),
 ]);
 
-const EXTRAS_TOOLS = Object.freeze([
-  {
-    id: "converter",
-    label: "Unit converter",
-    subtitle: "Metric and imperial quick conversion",
-    trailing: "Ready",
-    tip: "Use arrows to switch category, then center key to convert presets.",
-  },
-  {
-    id: "voice-recorder",
-    label: "Voice recorder",
-    subtitle: "Retro voice memo capture",
-    trailing: "00:00",
-    tip: "Center key starts a short recording simulation and saves to C:/Notes.",
-  },
-  {
-    id: "calculator",
-    label: "Calculator",
-    subtitle: "Four function calculator",
-    trailing: "Std",
-    tip: "Soft left opens scientific mode in full Symbian builds.",
-  },
-  {
-    id: "flashlight",
-    label: "Flashlight",
-    subtitle: "Display backlight utility",
-    trailing: "Off",
-    tip: "Center key toggles full white backlight mode.",
-  },
+const CALENDAR_EVENTS = Object.freeze([
+  Object.freeze({ month: 0, day: 8, title: "Sprint planning", time: "09:30" }),
+  Object.freeze({ month: 0, day: 12, title: "Dentist", time: "15:00" }),
+  Object.freeze({ month: 0, day: 18, title: "Dinner", time: "20:15" }),
+  Object.freeze({ month: 0, day: 23, title: "Train to Zagreb", time: "06:40" }),
+  Object.freeze({ month: 0, day: 28, title: "Release check", time: "11:00" }),
 ]);
+
+const TRACKS = Object.freeze([
+  Object.freeze({ title: "Ocean Avenue", artist: "Blue Harbor", durationSec: 245 }),
+  Object.freeze({ title: "Northern Lights", artist: "Stereo Drift", durationSec: 221 }),
+  Object.freeze({ title: "Nightline", artist: "Signal 57", durationSec: 263 }),
+  Object.freeze({ title: "Retro Metro", artist: "Tape Echo", durationSec: 197 }),
+]);
+
+const BOOKMARKS = Object.freeze([
+  Object.freeze({ title: "matijar.info", url: "https://matijar.info" }),
+  Object.freeze({ title: "Symbian docs mirror", url: "https://example.net/symbian-docs" }),
+  Object.freeze({ title: "Nokia forum archive", url: "https://example.net/s60-forum" }),
+  Object.freeze({ title: "Weather", url: "https://example.net/weather" }),
+  Object.freeze({ title: "Mail", url: "https://example.net/mail" }),
+]);
+
+const GALLERY_ITEMS = Object.freeze([
+  Object.freeze({ label: "IMG_1001", token: "01" }),
+  Object.freeze({ label: "IMG_1016", token: "02" }),
+  Object.freeze({ label: "IMG_1031", token: "03" }),
+  Object.freeze({ label: "IMG_1064", token: "04" }),
+  Object.freeze({ label: "IMG_1070", token: "05" }),
+  Object.freeze({ label: "IMG_1098", token: "06" }),
+  Object.freeze({ label: "IMG_1122", token: "07" }),
+  Object.freeze({ label: "IMG_1151", token: "08" }),
+  Object.freeze({ label: "IMG_1203", token: "09" }),
+]);
+
+const NOTE_SEED = Object.freeze([
+  Object.freeze({ title: "Ideas", text: "Prototype Symbian launcher with strict D-pad navigation." }),
+  Object.freeze({ title: "Groceries", text: "Coffee, lemons, pasta, olive oil." }),
+  Object.freeze({ title: "Travel", text: "Bus 268, seat 14, departure 06:40." }),
+  Object.freeze({ title: "Reading", text: "Revisit platform security capabilities on Symbian 9.1." }),
+]);
+
+const FILE_VOLUMES = Object.freeze([
+  Object.freeze({ name: "Phone memory (C:)", value: "43.1 MB free", usedPercent: 72 }),
+  Object.freeze({ name: "Mass memory (E:)", value: "1.2 GB free", usedPercent: 44 }),
+  Object.freeze({ name: "Memory card (F:)", value: "6.4 GB free", usedPercent: 38 }),
+]);
+
+const CONNECTIVITY_ROWS = Object.freeze([
+  Object.freeze({ key: "bluetooth", label: "Bluetooth", detailOn: "Discoverable", detailOff: "Hidden" }),
+  Object.freeze({ key: "wifi", label: "WLAN", detailOn: "Connected", detailOff: "Off" }),
+  Object.freeze({ key: "gprs", label: "Packet data", detailOn: "When needed", detailOff: "Disabled" }),
+  Object.freeze({ key: "usb", label: "USB mode", detailOn: "Mass storage", detailOff: "Not connected" }),
+]);
+
+const TOOLS = Object.freeze([
+  Object.freeze({ id: "task-switcher", label: "Task switcher", subtitle: "Manage running apps" }),
+  Object.freeze({ id: "memory", label: "Memory details", subtitle: "RAM and storage info" }),
+  Object.freeze({ id: "profiles", label: "Profiles", subtitle: "Audio behavior" }),
+  Object.freeze({ id: "device", label: "Device manager", subtitle: "System information" }),
+]);
+
+const PROFILES = Object.freeze(["General", "Silent", "Outdoor", "Meeting"]);
+const THEMES = Object.freeze(["S60 Blue", "Graphite", "Sunrise"]);
+const NETWORK_MODES = Object.freeze(["Dual mode", "UMTS", "GSM"]);
+const KEYPAD_TONES = Object.freeze(["On", "Off"]);
 
 function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
+  return Math.min(Math.max(value, min), max);
 }
 
-function safeIndex(index, length) {
-  if (!Number.isFinite(length) || length <= 0) {
-    return 0;
-  }
-
-  const safe = Number.isFinite(index) ? Math.trunc(index) : 0;
-  return clamp(safe, 0, length - 1);
-}
-
-function safeText(value) {
+function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
@@ -129,2067 +132,2109 @@ function safeText(value) {
     .replaceAll("'", "&#39;");
 }
 
-function todayIsoDate() {
-  return new Date().toISOString().slice(0, 10);
+function isPrintableCharacter(value) {
+  return typeof value === "string" && value.length === 1;
 }
 
-function buildSortedEvents() {
-  return [...CALENDAR_EVENTS].sort((left, right) => {
-    const leftStamp = `${left.date || ""} ${left.time || ""}`;
-    const rightStamp = `${right.date || ""} ${right.time || ""}`;
-    return leftStamp.localeCompare(rightStamp);
-  });
+function toTwoDigits(value) {
+  return String(value).padStart(2, "0");
 }
 
-function buildMessagesByFolder() {
-  const inbox = MESSAGE_THREADS.map((thread) => ({
-    id: thread.id,
-    label: thread.from,
-    subtitle: thread.preview,
-    trailing: thread.updatedAt,
-    iconToken: "SMS",
-    badge: thread.unreadCount > 0 ? String(thread.unreadCount) : "",
-    isUnread: thread.unreadCount > 0,
-  }));
-
-  const sent = MESSAGE_THREADS.flatMap((thread) =>
-    (thread.messages || [])
-      .filter((message) => message.direction === "out")
-      .map((message) => ({
-        id: `${thread.id}-${message.id}`,
-        label: `To ${thread.from}`,
-        subtitle: message.text,
-        trailing: message.sentAt,
-        iconToken: "OUT",
-      })),
-  );
-
-  const drafts = [
-    {
-      id: "draft-portfolio",
-      label: "Portfolio launch follow-up",
-      subtitle: "Need final icon pass and browser fallback screenshots.",
-      trailing: "Today",
-      iconToken: "DR",
-    },
-    {
-      id: "draft-reminder",
-      label: "Reminder to self",
-      subtitle: "Pack charger and memory card before travel.",
-      trailing: "Yesterday",
-      iconToken: "DR",
-    },
-  ];
-
-  return {
-    inbox,
-    sent,
-    drafts,
-  };
+function formatClock(date) {
+  return `${toTwoDigits(date.getHours())}:${toTwoDigits(date.getMinutes())}`;
 }
 
-function buildGalleryByAlbum() {
-  const camera = GALLERY_ITEMS.slice(0, 3).map((item) => ({
-    id: item.id,
-    label: item.title,
-    subtitle: item.resolution,
-    trailing: item.size,
-    iconToken: "PH",
-  }));
-
-  const saved = GALLERY_ITEMS.slice(3).map((item) => ({
-    id: item.id,
-    label: item.title,
-    subtitle: item.capturedAt,
-    trailing: item.size,
-    iconToken: "IM",
-  }));
-
-  const received = [
-    {
-      id: "recv-storyboard",
-      label: "Storyboard",
-      subtitle: "MMS attachment from Lana",
-      trailing: "212 KB",
-      iconToken: "RX",
-    },
-    {
-      id: "recv-logo",
-      label: "Logo draft",
-      subtitle: "Bluetooth transfer",
-      trailing: "84 KB",
-      iconToken: "RX",
-    },
-  ];
-
-  return {
-    camera,
-    saved,
-    received,
-  };
+function formatDateShort(date) {
+  const day = toTwoDigits(date.getDate());
+  const month = date.toLocaleString("en-US", { month: "short" });
+  return `${day} ${month}`;
 }
 
-function buildBrowserHistoryRows() {
-  return [
-    {
-      id: "hist-matijar",
-      label: "matijar.info",
-      subtitle: "https://matijar.info",
-      trailing: "13:02",
-      iconToken: "WEB",
-    },
-    {
-      id: "hist-s60",
-      label: "S60 API archive",
-      subtitle: "https://forum.s60.dev",
-      trailing: "12:48",
-      iconToken: "WEB",
-    },
-    {
-      id: "hist-docs",
-      label: "Deployment docs",
-      subtitle: "https://matijar.info/docs",
-      trailing: "11:33",
-      iconToken: "WEB",
-    },
-  ];
+function formatDateLong(date) {
+  const weekday = date.toLocaleString("en-US", { weekday: "short" });
+  const day = toTwoDigits(date.getDate());
+  const month = date.toLocaleString("en-US", { month: "long" });
+  const year = date.getFullYear();
+  return `${weekday}, ${day} ${month} ${year}`;
 }
 
-function buildMonthGridCells(isoDate, events) {
-  const current = new Date(`${isoDate}T12:00:00`);
-  const year = current.getFullYear();
-  const month = current.getMonth();
-  const startWeekday = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const prevMonthDays = new Date(year, month, 0).getDate();
-  const eventDateSet = new Set((events || []).map((entry) => entry.date));
-  const now = new Date();
-  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
-    now.getDate(),
-  ).padStart(2, "0")}`;
-  const cells = [];
-
-  for (let i = startWeekday - 1; i >= 0; i -= 1) {
-    const day = prevMonthDays - i;
-    const prevDate = new Date(year, month - 1, day);
-    const iso = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, "0")}-${String(
-      prevDate.getDate(),
-    ).padStart(2, "0")}`;
-    cells.push({
-      day,
-      isoDate: iso,
-      isOutsideMonth: true,
-      isToday: iso === today,
-      hasEvent: eventDateSet.has(iso),
-    });
-  }
-
-  for (let day = 1; day <= daysInMonth; day += 1) {
-    const iso = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-    cells.push({
-      day,
-      isoDate: iso,
-      isOutsideMonth: false,
-      isToday: iso === today,
-      hasEvent: eventDateSet.has(iso),
-    });
-  }
-
-  let nextDay = 1;
-  while (cells.length < 42) {
-    const nextDate = new Date(year, month + 1, nextDay);
-    const iso = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, "0")}-${String(
-      nextDate.getDate(),
-    ).padStart(2, "0")}`;
-    cells.push({
-      day: nextDay,
-      isoDate: iso,
-      isOutsideMonth: true,
-      isToday: iso === today,
-      hasEvent: eventDateSet.has(iso),
-    });
-    nextDay += 1;
-  }
-
-  const rows = [];
-  for (let row = 0; row < 6; row += 1) {
-    rows.push(cells.slice(row * 7, row * 7 + 7));
-  }
-
-  return rows;
+function formatDuration(totalSeconds) {
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = safeSeconds % 60;
+  return `${toTwoDigits(minutes)}:${toTwoDigits(seconds)}`;
 }
 
-function moveGridIndex(index, key, count, columns) {
+function cycleIndex(current, count, direction) {
   if (count <= 0) {
     return 0;
   }
 
-  const safe = safeIndex(index, count);
-  const col = safe % columns;
-
-  if (key === "ArrowLeft" && col > 0) {
-    return safe - 1;
+  if (direction > 0) {
+    return (current + 1) % count;
   }
 
-  if (key === "ArrowRight" && safe + 1 < count && col < columns - 1) {
-    return safe + 1;
-  }
-
-  if (key === "ArrowUp" && safe - columns >= 0) {
-    return safe - columns;
-  }
-
-  if (key === "ArrowDown" && safe + columns < count) {
-    return safe + columns;
-  }
-
-  return safe;
+  return (current - 1 + count) % count;
 }
 
-function findNodeById(node, targetId) {
-  if (!node || typeof node !== "object") {
-    return null;
+function moveGridIndex(current, direction, itemCount, columnCount) {
+  if (itemCount <= 0) {
+    return 0;
   }
 
-  if (node.id === targetId) {
-    return node;
+  const maxIndex = itemCount - 1;
+
+  if (direction === "left") {
+    return clamp(current - 1, 0, maxIndex);
   }
 
-  const children = Array.isArray(node.children) ? node.children : [];
-  for (const child of children) {
-    const found = findNodeById(child, targetId);
-    if (found) {
-      return found;
-    }
+  if (direction === "right") {
+    return clamp(current + 1, 0, maxIndex);
   }
 
-  return null;
-}
-
-function findNodeByPath(rootNode, pathIds) {
-  if (!rootNode) {
-    return null;
+  if (direction === "up") {
+    return clamp(current - columnCount, 0, maxIndex);
   }
 
-  let current = rootNode;
-  for (let i = 1; i < pathIds.length; i += 1) {
-    const pathId = pathIds[i];
-    const children = Array.isArray(current.children) ? current.children : [];
-    const next = children.find((entry) => entry.id === pathId);
-    if (!next) {
-      return current;
-    }
-    current = next;
+  if (direction === "down") {
+    return clamp(current + columnCount, 0, maxIndex);
   }
 
   return current;
 }
 
-function countFilesRecursive(node) {
-  if (!node || typeof node !== "object") {
-    return 0;
-  }
-
-  if (node.type === "file") {
-    return 1;
-  }
-
-  return (node.children || []).reduce((total, child) => total + countFilesRecursive(child), 0);
+function getAppMeta(appId) {
+  return MENU_APPS.find((app) => app.id === appId) || null;
 }
 
-function createMessagesRows(thread) {
-  return (thread.messages || []).map((message, index) => ({
-    id: `${thread.id}-line-${index + 1}`,
-    label: message.direction === "in" ? thread.from : "You",
-    subtitle: message.text,
-    trailing: message.sentAt,
-  }));
-}
+function createInitialState({ variant }) {
+  const now = new Date();
 
-export function createSymbianShell({ root }) {
-  const settingsCategories = cloneSettingsCategories(SETTINGS_CATEGORIES);
-  const fileTree = cloneFileTree(FILE_MANAGER_TREE);
-  const sortedEvents = buildSortedEvents();
-  const messageFolders = buildMessagesByFolder();
-  const galleryByAlbum = buildGalleryByAlbum();
-  const browserHistoryRows = buildBrowserHistoryRows();
-  const notesEntries = NOTES.map((note) => ({ ...note }));
-
-  const state = {
-    phase: "booting",
-    bootLineCount: 0,
-    statusTick: 0,
-    now: new Date(),
-    view: "standby",
-    currentApp: null,
-    viewStack: [],
+  return {
+    variant,
+    brand: variant === "uiq-p1i" ? "Sony Ericsson" : "Nokia",
+    platformName: variant === "uiq-p1i" ? "Symbian 9.1 / UIQ 3.0" : "Symbian 9.1 / S60 3rd Edition",
+    screen: "boot",
+    appReturnScreen: "menu",
+    currentAppId: null,
+    runningApps: [],
+    recentApps: [],
+    keylock: false,
+    now,
+    signalBars: 4,
+    batteryLevel: 82,
+    profileName: "General",
+    carrierName: "Operator",
+    standbyShortcutIndex: 0,
+    standbyNotifications: [
+      { label: "1 new message", subtitle: "Ana Kovac", trailing: "now", token: "MS" },
+      { label: "Calendar", subtitle: "Sprint planning 09:30", trailing: "today", token: "CL" },
+    ],
     menuIndex: 0,
-    homeShortcutIndex: 0,
-    contactsTab: "all",
-    contactsSelectedByTab: {
-      all: 0,
-      favorites: 0,
-      sim: 0,
+    boot: {
+      lineIndex: 0,
+      logs: [],
+      progress: 2,
+      complete: false,
     },
-    messagesFolder: "inbox",
-    messagesSelectedByFolder: {
-      inbox: 0,
-      sent: 0,
-      drafts: 0,
-    },
-    calendarTab: "agenda",
-    calendarAgendaIndex: 0,
-    calendarSelectedIsoDate: todayIsoDate(),
-    galleryAlbum: "camera",
-    gallerySelectedByAlbum: {
-      camera: 0,
-      saved: 0,
-      received: 0,
-    },
-    musicSelectedIndex: 0,
-    musicIsPlaying: false,
-    musicElapsedSec: 0,
-    browserTab: "bookmarks",
-    browserSelectedByTab: {
-      bookmarks: 0,
-      history: 0,
-    },
-    browserLoading: false,
-    filesPathIds: [fileTree?.id || "root"],
-    filesSelectedIndex: 0,
-    notesSelectedIndex: 0,
-    settingsCategoryIndex: 0,
-    settingsDetailIndex: 0,
-    settingsFocus: "details",
-    extrasIndex: 0,
-    profilesIndex: 0,
-    activeProfileId: PROFILE_PRESETS[0]?.id || "general",
-    callLogIndex: 0,
     toast: null,
-    dialog: null,
-    statusMessage: "Use Menu or center key to open applications.",
+    popup: null,
+    taskSwitcher: {
+      open: false,
+      cursor: 0,
+    },
+    apps: {
+      contacts: {
+        query: "",
+        cursor: 0,
+      },
+      messaging: {
+        cursor: 0,
+        mode: "inbox",
+        recipient: "",
+        body: "",
+        focus: "body",
+        inputMode: "abc",
+        messages: MESSAGE_SEED.map((entry) => ({ ...entry })),
+      },
+      calendar: {
+        selectedDate: new Date(now.getFullYear(), now.getMonth(), now.getDate()),
+      },
+      music: {
+        cursor: 0,
+        playing: false,
+        trackIndex: 0,
+        progressSec: 52,
+        volume: 6,
+      },
+      browser: {
+        cursor: 0,
+        currentTitle: BOOKMARKS[0].title,
+        currentUrl: BOOKMARKS[0].url,
+        state: "Ready",
+      },
+      gallery: {
+        cursor: 0,
+      },
+      notes: {
+        cursor: 0,
+        notes: NOTE_SEED.map((note) => ({ ...note })),
+      },
+      settings: {
+        cursor: 0,
+        profileIndex: 0,
+        themeIndex: 0,
+        networkIndex: 0,
+        keypadToneIndex: 0,
+      },
+      files: {
+        cursor: 0,
+      },
+      connectivity: {
+        cursor: 0,
+        toggles: {
+          bluetooth: false,
+          wifi: true,
+          gprs: true,
+          usb: false,
+        },
+      },
+      tools: {
+        cursor: 0,
+      },
+      clock: {
+        alarmTime: "06:30",
+      },
+    },
   };
+}
 
-  const timers = {
-    bootIntervalId: null,
-    bootDoneTimeoutId: null,
-    clockIntervalId: null,
-    toastTimeoutId: null,
-    browserLoadingTimeoutId: null,
-  };
+function buildCalendarRows(selectedDate, eventsByKey) {
+  const year = selectedDate.getFullYear();
+  const month = selectedDate.getMonth();
+  const monthStart = new Date(year, month, 1);
+  const monthEnd = new Date(year, month + 1, 0);
+  const firstWeekday = (monthStart.getDay() + 6) % 7;
+  const daysInMonth = monthEnd.getDate();
+  const prevMonthEnd = new Date(year, month, 0).getDate();
 
-  function getSignalLevel() {
-    return SIGNAL_LEVEL_SEQUENCE[state.statusTick % SIGNAL_LEVEL_SEQUENCE.length] || 0;
-  }
+  const rows = [];
+  let cursorDay = 1;
+  let nextMonthDay = 1;
 
-  function getBatteryLevel() {
-    return BATTERY_LEVEL_SEQUENCE[state.statusTick % BATTERY_LEVEL_SEQUENCE.length] || 0;
-  }
+  for (let rowIndex = 0; rowIndex < 6; rowIndex += 1) {
+    const row = [];
 
-  function getOperatorLabel() {
-    return OPERATOR_SEQUENCE[state.statusTick % OPERATOR_SEQUENCE.length] || "SYMBIAN GSM";
-  }
+    for (let columnIndex = 0; columnIndex < 7; columnIndex += 1) {
+      const absoluteIndex = rowIndex * 7 + columnIndex;
+      let day = 0;
+      let date = null;
+      let isOutside = false;
 
-  function getActiveProfile() {
-    return (
-      PROFILE_PRESETS.find((profile) => profile.id === state.activeProfileId) ||
-      PROFILE_PRESETS[0] || {
-        id: "general",
-        label: "General",
-        ringVolume: 6,
-        vibra: true,
+      if (absoluteIndex < firstWeekday) {
+        day = prevMonthEnd - firstWeekday + absoluteIndex + 1;
+        date = new Date(year, month - 1, day);
+        isOutside = true;
+      } else if (cursorDay <= daysInMonth) {
+        day = cursorDay;
+        date = new Date(year, month, day);
+        cursorDay += 1;
+      } else {
+        day = nextMonthDay;
+        date = new Date(year, month + 1, day);
+        nextMonthDay += 1;
+        isOutside = true;
       }
-    );
+
+      const key = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+      const isSelected =
+        date.getFullYear() === selectedDate.getFullYear() &&
+        date.getMonth() === selectedDate.getMonth() &&
+        date.getDate() === selectedDate.getDate();
+
+      row.push({
+        day,
+        key,
+        isOutside,
+        isSelected,
+        hasEvent: eventsByKey.has(key),
+      });
+    }
+
+    rows.push(row);
   }
 
-  function clearTimer(timerKey) {
-    const timerId = timers[timerKey];
-    if (!timerId) {
+  return rows;
+}
+
+export function createSymbianShell({ root, variant = "v1995-s60" } = {}) {
+  if (!(root instanceof HTMLElement)) {
+    throw new Error("createSymbianShell requires a valid root HTMLElement.");
+  }
+
+  const state = createInitialState({ variant });
+  const timeouts = new Set();
+  const intervals = new Set();
+
+  let mounted = false;
+  let clockTickCount = 0;
+  let toastTimeoutId = null;
+  let popupTimeoutId = null;
+
+  function setManagedTimeout(callback, delayMs) {
+    const timeoutId = window.setTimeout(() => {
+      timeouts.delete(timeoutId);
+      callback();
+    }, delayMs);
+
+    timeouts.add(timeoutId);
+    return timeoutId;
+  }
+
+  function setManagedInterval(callback, intervalMs) {
+    const intervalId = window.setInterval(callback, intervalMs);
+    intervals.add(intervalId);
+    return intervalId;
+  }
+
+  function clearManagedTimeout(timeoutId) {
+    if (timeoutId == null) {
       return;
     }
 
-    if (timerKey === "bootDoneTimeoutId" || timerKey === "toastTimeoutId" || timerKey === "browserLoadingTimeoutId") {
-      window.clearTimeout(timerId);
-    } else {
-      window.clearInterval(timerId);
-    }
-
-    timers[timerKey] = null;
+    window.clearTimeout(timeoutId);
+    timeouts.delete(timeoutId);
   }
 
   function clearAllTimers() {
-    clearTimer("bootIntervalId");
-    clearTimer("bootDoneTimeoutId");
-    clearTimer("clockIntervalId");
-    clearTimer("toastTimeoutId");
-    clearTimer("browserLoadingTimeoutId");
+    for (const timeoutId of timeouts) {
+      window.clearTimeout(timeoutId);
+    }
+    timeouts.clear();
+
+    for (const intervalId of intervals) {
+      window.clearInterval(intervalId);
+    }
+    intervals.clear();
   }
 
-  function setToast(message, tone = "info", durationMs = SOFTKEY_FALLBACK_TIMEOUT_MS) {
+  function getTaskSwitcherApps() {
+    return state.recentApps.filter((appId) => state.runningApps.includes(appId));
+  }
+
+  function addRunningApp(appId) {
+    if (!state.runningApps.includes(appId)) {
+      state.runningApps.push(appId);
+    }
+
+    state.recentApps = [appId, ...state.recentApps.filter((id) => id !== appId)].slice(0, 8);
+  }
+
+  function removeRunningApp(appId) {
+    state.runningApps = state.runningApps.filter((id) => id !== appId);
+    state.recentApps = state.recentApps.filter((id) => id !== appId);
+
+    if (state.currentAppId === appId) {
+      state.currentAppId = null;
+      state.screen = "menu";
+    }
+
+    const taskApps = getTaskSwitcherApps();
+    state.taskSwitcher.cursor = clamp(state.taskSwitcher.cursor, 0, Math.max(0, taskApps.length - 1));
+  }
+
+  function setToast(message, variantName = "info", durationMs = 1400) {
     state.toast = {
       message,
-      tone,
+      variant: variantName,
     };
-    clearTimer("toastTimeoutId");
 
-    if (durationMs > 0) {
-      timers.toastTimeoutId = window.setTimeout(() => {
-        state.toast = null;
-        timers.toastTimeoutId = null;
+    clearManagedTimeout(toastTimeoutId);
+    toastTimeoutId = setManagedTimeout(() => {
+      state.toast = null;
+      toastTimeoutId = null;
+      render();
+    }, durationMs);
+  }
+
+  function setPopup(message, variantName = "info", durationMs = 1600) {
+    state.popup = {
+      message,
+      variant: variantName,
+    };
+
+    clearManagedTimeout(popupTimeoutId);
+    popupTimeoutId = setManagedTimeout(() => {
+      state.popup = null;
+      popupTimeoutId = null;
+      render();
+    }, durationMs);
+  }
+
+  function getFilteredContacts() {
+    const query = state.apps.contacts.query.trim().toLowerCase();
+
+    if (!query) {
+      return CONTACTS;
+    }
+
+    return CONTACTS.filter((contact) =>
+      contact.name.toLowerCase().includes(query) || contact.number.toLowerCase().includes(query),
+    );
+  }
+
+  function getEventsByDate() {
+    const events = new Map();
+
+    for (const entry of CALENDAR_EVENTS) {
+      const selectedYear = state.apps.calendar.selectedDate.getFullYear();
+      const key = `${selectedYear}-${entry.month}-${entry.day}`;
+
+      if (!events.has(key)) {
+        events.set(key, []);
+      }
+
+      events.get(key).push(entry);
+    }
+
+    return events;
+  }
+
+  function getCurrentCalendarEvents() {
+    const selectedDate = state.apps.calendar.selectedDate;
+    const key = `${selectedDate.getFullYear()}-${selectedDate.getMonth()}-${selectedDate.getDate()}`;
+    const eventsByDate = getEventsByDate();
+    return eventsByDate.get(key) || [];
+  }
+
+  function getCurrentTrack() {
+    return TRACKS[state.apps.music.trackIndex] || TRACKS[0];
+  }
+
+  function normalizeAppCursors() {
+    const contactsLength = getFilteredContacts().length;
+    state.apps.contacts.cursor = clamp(state.apps.contacts.cursor, 0, Math.max(0, contactsLength - 1));
+
+    state.apps.messaging.cursor = clamp(
+      state.apps.messaging.cursor,
+      0,
+      Math.max(0, state.apps.messaging.messages.length - 1),
+    );
+
+    state.apps.gallery.cursor = clamp(state.apps.gallery.cursor, 0, GALLERY_ITEMS.length - 1);
+    state.apps.notes.cursor = clamp(state.apps.notes.cursor, 0, Math.max(0, state.apps.notes.notes.length - 1));
+    state.apps.files.cursor = clamp(state.apps.files.cursor, 0, FILE_VOLUMES.length - 1);
+    state.apps.connectivity.cursor = clamp(state.apps.connectivity.cursor, 0, CONNECTIVITY_ROWS.length - 1);
+    state.apps.tools.cursor = clamp(state.apps.tools.cursor, 0, TOOLS.length - 1);
+    state.apps.browser.cursor = clamp(state.apps.browser.cursor, 0, BOOKMARKS.length - 1);
+  }
+
+  function completeBoot() {
+    if (state.screen !== "boot") {
+      return;
+    }
+
+    state.screen = "standby";
+    state.boot.complete = true;
+    state.popup = null;
+    setToast("Standby ready", "success", 1000);
+    render();
+  }
+
+  function progressBoot() {
+    if (!mounted || state.screen !== "boot") {
+      return;
+    }
+
+    if (state.boot.lineIndex >= BOOT_LINES.length) {
+      state.boot.progress = 100;
+      render();
+      setManagedTimeout(() => {
+        completeBoot();
+      }, 700);
+      return;
+    }
+
+    const line = BOOT_LINES[state.boot.lineIndex];
+    state.boot.logs.push(line);
+    state.boot.lineIndex += 1;
+    state.boot.progress = clamp(Math.round((state.boot.lineIndex / BOOT_LINES.length) * 100), 1, 100);
+
+    render();
+
+    const delayMs = state.boot.lineIndex <= 3 ? 440 : 300;
+    setManagedTimeout(progressBoot, delayMs);
+  }
+
+  function startBootSequence() {
+    state.screen = "boot";
+    state.boot.logs = [];
+    state.boot.lineIndex = 0;
+    state.boot.progress = 2;
+    state.boot.complete = false;
+    progressBoot();
+  }
+
+  function openMenu() {
+    state.screen = "menu";
+    state.currentAppId = null;
+    state.taskSwitcher.open = false;
+  }
+
+  function goStandby() {
+    state.screen = "standby";
+    state.currentAppId = null;
+    state.taskSwitcher.open = false;
+  }
+
+  function launchApp(appId, { fromScreen = state.screen } = {}) {
+    const appMeta = getAppMeta(appId);
+
+    if (!appMeta) {
+      setToast("Application is unavailable", "warning");
+      return;
+    }
+
+    addRunningApp(appId);
+    state.currentAppId = appId;
+    state.appReturnScreen = fromScreen === "standby" ? "standby" : "menu";
+    state.screen = "app";
+    state.taskSwitcher.open = false;
+  }
+
+  function backFromApp() {
+    if (!state.currentAppId) {
+      openMenu();
+      return;
+    }
+
+    if (state.currentAppId === "messaging" && state.apps.messaging.mode === "compose") {
+      state.apps.messaging.mode = "inbox";
+      setToast("Draft kept", "info", 1000);
+      return;
+    }
+
+    state.currentAppId = null;
+    state.screen = state.appReturnScreen || "menu";
+  }
+
+  function toggleTaskSwitcher() {
+    const taskApps = getTaskSwitcherApps();
+
+    if (taskApps.length === 0) {
+      setToast("No running apps", "warning");
+      return;
+    }
+
+    state.taskSwitcher.open = !state.taskSwitcher.open;
+    state.taskSwitcher.cursor = clamp(state.taskSwitcher.cursor, 0, taskApps.length - 1);
+  }
+
+  function activateTaskSwitcherSelection() {
+    const taskApps = getTaskSwitcherApps();
+
+    if (taskApps.length === 0) {
+      state.taskSwitcher.open = false;
+      return;
+    }
+
+    const appId = taskApps[state.taskSwitcher.cursor];
+    launchApp(appId, { fromScreen: "menu" });
+  }
+
+  function closeTaskSwitcherSelection() {
+    const taskApps = getTaskSwitcherApps();
+
+    if (taskApps.length === 0) {
+      state.taskSwitcher.open = false;
+      return;
+    }
+
+    const appId = taskApps[state.taskSwitcher.cursor];
+    removeRunningApp(appId);
+
+    const nextApps = getTaskSwitcherApps();
+    if (nextApps.length === 0) {
+      state.taskSwitcher.open = false;
+    } else {
+      state.taskSwitcher.cursor = clamp(state.taskSwitcher.cursor, 0, nextApps.length - 1);
+    }
+  }
+
+  function moveMenu(direction) {
+    state.menuIndex = moveGridIndex(state.menuIndex, direction, MENU_APPS.length, 3);
+  }
+
+  function launchMenuIndex(index) {
+    const resolved = clamp(index, 0, MENU_APPS.length - 1);
+    state.menuIndex = resolved;
+
+    const app = MENU_APPS[resolved];
+    if (!app) {
+      return;
+    }
+
+    launchApp(app.id, { fromScreen: "menu" });
+  }
+
+  function moveClockApp(direction) {
+    const now = state.now;
+    if (direction === "up") {
+      state.now = new Date(now.getTime() + 60 * 1000);
+    } else if (direction === "down") {
+      state.now = new Date(now.getTime() - 60 * 1000);
+    }
+  }
+
+  function changeSettingOption(direction) {
+    const settings = state.apps.settings;
+    const delta = direction === "right" ? 1 : -1;
+
+    if (settings.cursor === 0) {
+      settings.profileIndex = cycleIndex(settings.profileIndex, PROFILES.length, delta);
+      state.profileName = PROFILES[settings.profileIndex];
+      return;
+    }
+
+    if (settings.cursor === 1) {
+      settings.themeIndex = cycleIndex(settings.themeIndex, THEMES.length, delta);
+      return;
+    }
+
+    if (settings.cursor === 2) {
+      settings.networkIndex = cycleIndex(settings.networkIndex, NETWORK_MODES.length, delta);
+      return;
+    }
+
+    if (settings.cursor === 3) {
+      settings.keypadToneIndex = cycleIndex(settings.keypadToneIndex, KEYPAD_TONES.length, delta);
+    }
+  }
+
+  function handleAppDirection(direction) {
+    if (!state.currentAppId) {
+      return;
+    }
+
+    normalizeAppCursors();
+
+    if (state.currentAppId === "contacts") {
+      const contacts = getFilteredContacts();
+      if (direction === "up") {
+        state.apps.contacts.cursor = clamp(state.apps.contacts.cursor - 1, 0, Math.max(0, contacts.length - 1));
+      } else if (direction === "down") {
+        state.apps.contacts.cursor = clamp(state.apps.contacts.cursor + 1, 0, Math.max(0, contacts.length - 1));
+      }
+      return;
+    }
+
+    if (state.currentAppId === "messaging") {
+      if (state.apps.messaging.mode === "compose") {
+        if (direction === "up" || direction === "down") {
+          state.apps.messaging.focus = state.apps.messaging.focus === "recipient" ? "body" : "recipient";
+        }
+      } else {
+        if (direction === "up") {
+          state.apps.messaging.cursor = clamp(state.apps.messaging.cursor - 1, 0, Math.max(0, state.apps.messaging.messages.length - 1));
+        } else if (direction === "down") {
+          state.apps.messaging.cursor = clamp(state.apps.messaging.cursor + 1, 0, Math.max(0, state.apps.messaging.messages.length - 1));
+        }
+      }
+      return;
+    }
+
+    if (state.currentAppId === "calendar") {
+      const selected = state.apps.calendar.selectedDate;
+      if (direction === "left") {
+        state.apps.calendar.selectedDate = new Date(selected.getFullYear(), selected.getMonth(), selected.getDate() - 1);
+      } else if (direction === "right") {
+        state.apps.calendar.selectedDate = new Date(selected.getFullYear(), selected.getMonth(), selected.getDate() + 1);
+      } else if (direction === "up") {
+        state.apps.calendar.selectedDate = new Date(selected.getFullYear(), selected.getMonth(), selected.getDate() - 7);
+      } else if (direction === "down") {
+        state.apps.calendar.selectedDate = new Date(selected.getFullYear(), selected.getMonth(), selected.getDate() + 7);
+      }
+      return;
+    }
+
+    if (state.currentAppId === "music") {
+      if (direction === "left") {
+        state.apps.music.trackIndex = cycleIndex(state.apps.music.trackIndex, TRACKS.length, -1);
+        state.apps.music.progressSec = 0;
+      } else if (direction === "right") {
+        state.apps.music.trackIndex = cycleIndex(state.apps.music.trackIndex, TRACKS.length, 1);
+        state.apps.music.progressSec = 0;
+      } else if (direction === "up") {
+        state.apps.music.volume = clamp(state.apps.music.volume + 1, 0, 10);
+      } else if (direction === "down") {
+        state.apps.music.volume = clamp(state.apps.music.volume - 1, 0, 10);
+      }
+      return;
+    }
+
+    if (state.currentAppId === "browser") {
+      if (direction === "up") {
+        state.apps.browser.cursor = clamp(state.apps.browser.cursor - 1, 0, BOOKMARKS.length - 1);
+      } else if (direction === "down") {
+        state.apps.browser.cursor = clamp(state.apps.browser.cursor + 1, 0, BOOKMARKS.length - 1);
+      }
+      return;
+    }
+
+    if (state.currentAppId === "gallery") {
+      state.apps.gallery.cursor = moveGridIndex(state.apps.gallery.cursor, direction, GALLERY_ITEMS.length, 3);
+      return;
+    }
+
+    if (state.currentAppId === "notes") {
+      if (direction === "up") {
+        state.apps.notes.cursor = clamp(state.apps.notes.cursor - 1, 0, Math.max(0, state.apps.notes.notes.length - 1));
+      } else if (direction === "down") {
+        state.apps.notes.cursor = clamp(state.apps.notes.cursor + 1, 0, Math.max(0, state.apps.notes.notes.length - 1));
+      }
+      return;
+    }
+
+    if (state.currentAppId === "settings") {
+      if (direction === "up") {
+        state.apps.settings.cursor = clamp(state.apps.settings.cursor - 1, 0, 3);
+      } else if (direction === "down") {
+        state.apps.settings.cursor = clamp(state.apps.settings.cursor + 1, 0, 3);
+      } else if (direction === "left" || direction === "right") {
+        changeSettingOption(direction);
+      }
+      return;
+    }
+
+    if (state.currentAppId === "files") {
+      if (direction === "up") {
+        state.apps.files.cursor = clamp(state.apps.files.cursor - 1, 0, FILE_VOLUMES.length - 1);
+      } else if (direction === "down") {
+        state.apps.files.cursor = clamp(state.apps.files.cursor + 1, 0, FILE_VOLUMES.length - 1);
+      }
+      return;
+    }
+
+    if (state.currentAppId === "connectivity") {
+      if (direction === "up") {
+        state.apps.connectivity.cursor = clamp(state.apps.connectivity.cursor - 1, 0, CONNECTIVITY_ROWS.length - 1);
+      } else if (direction === "down") {
+        state.apps.connectivity.cursor = clamp(state.apps.connectivity.cursor + 1, 0, CONNECTIVITY_ROWS.length - 1);
+      }
+      return;
+    }
+
+    if (state.currentAppId === "tools") {
+      if (direction === "up") {
+        state.apps.tools.cursor = clamp(state.apps.tools.cursor - 1, 0, TOOLS.length - 1);
+      } else if (direction === "down") {
+        state.apps.tools.cursor = clamp(state.apps.tools.cursor + 1, 0, TOOLS.length - 1);
+      }
+      return;
+    }
+
+    if (state.currentAppId === "clock") {
+      moveClockApp(direction);
+    }
+  }
+
+  function activateCurrentAppSelection() {
+    if (!state.currentAppId) {
+      return;
+    }
+
+    if (state.currentAppId === "contacts") {
+      const contacts = getFilteredContacts();
+      const selected = contacts[state.apps.contacts.cursor];
+      if (selected) {
+        setToast(`Dialing ${selected.name}`, "info", 1200);
+      }
+      return;
+    }
+
+    if (state.currentAppId === "messaging") {
+      if (state.apps.messaging.mode === "compose") {
+        const recipient = state.apps.messaging.recipient.trim();
+        const body = state.apps.messaging.body.trim();
+
+        if (!recipient || !body) {
+          setToast("Enter recipient and text", "warning");
+          return;
+        }
+
+        const sentTime = formatClock(state.now);
+        state.apps.messaging.messages.unshift({
+          from: `To: ${recipient}`,
+          body,
+          time: sentTime,
+          unread: false,
+        });
+        state.apps.messaging.recipient = "";
+        state.apps.messaging.body = "";
+        state.apps.messaging.mode = "inbox";
+        state.apps.messaging.cursor = 0;
+        setToast("Message sent", "success");
+        return;
+      }
+
+      const selected = state.apps.messaging.messages[state.apps.messaging.cursor];
+      if (selected) {
+        selected.unread = false;
+        setPopup(`${selected.from}: ${selected.body}`, "info", 1900);
+      }
+      return;
+    }
+
+    if (state.currentAppId === "calendar") {
+      const events = getCurrentCalendarEvents();
+      if (events.length === 0) {
+        setToast("No events on selected day", "warning");
+        return;
+      }
+
+      setPopup(events.map((entry) => `${entry.time} ${entry.title}`).join(" | "), "info", 2200);
+      return;
+    }
+
+    if (state.currentAppId === "music") {
+      state.apps.music.playing = !state.apps.music.playing;
+      setToast(state.apps.music.playing ? "Playback started" : "Playback paused", "info", 1000);
+      return;
+    }
+
+    if (state.currentAppId === "browser") {
+      const bookmark = BOOKMARKS[state.apps.browser.cursor];
+      if (!bookmark) {
+        return;
+      }
+
+      state.apps.browser.currentTitle = bookmark.title;
+      state.apps.browser.currentUrl = bookmark.url;
+      state.apps.browser.state = "Loading";
+      setManagedTimeout(() => {
+        state.apps.browser.state = "Ready";
         render();
-      }, durationMs);
-    }
-  }
-
-  function setDialog({ title, lines }) {
-    state.dialog = {
-      title,
-      lines: Array.isArray(lines) ? [...lines] : [],
-    };
-  }
-
-  function clearDialog() {
-    state.dialog = null;
-  }
-
-  function pushCurrentViewToStack() {
-    state.viewStack.push({
-      view: state.view,
-      currentApp: state.currentApp,
-    });
-  }
-
-  function restorePreviousView() {
-    const previous = state.viewStack.pop();
-
-    if (!previous) {
-      state.view = "standby";
-      state.currentApp = null;
+      }, 550);
       return;
     }
 
-    state.view = previous.view;
-    state.currentApp = previous.currentApp || null;
-  }
-
-  function openMenu({ pushHistory = true } = {}) {
-    if (state.phase !== "ready") {
-      return;
-    }
-
-    if (pushHistory && (state.view !== "menu" || state.currentApp)) {
-      pushCurrentViewToStack();
-    }
-
-    state.view = "menu";
-    state.currentApp = null;
-    state.statusMessage = "Menu ready. Use arrows or keypad numbers.";
-  }
-
-  function openApp(appId, { pushHistory = true } = {}) {
-    const appExists = APP_MENU_ITEMS.some((entry) => entry.id === appId);
-
-    if (!appExists) {
-      setToast(`Application '${appId}' is not installed.`, "warning");
-      return;
-    }
-
-    if (pushHistory && (state.view !== "app" || state.currentApp !== appId)) {
-      pushCurrentViewToStack();
-    }
-
-    state.view = "app";
-    state.currentApp = appId;
-    state.statusMessage = `${appId} opened.`;
-
-    if (appId === "browser") {
-      state.browserLoading = false;
-      clearTimer("browserLoadingTimeoutId");
-    }
-  }
-
-  function goToStandby({ clearHistory = false } = {}) {
-    state.view = "standby";
-    state.currentApp = null;
-    state.statusMessage = "Standby active.";
-
-    if (clearHistory) {
-      state.viewStack = [];
-    }
-  }
-
-  function goBack() {
-    if (state.dialog) {
-      clearDialog();
-      return;
-    }
-
-    if (state.viewStack.length > 0) {
-      restorePreviousView();
-      state.statusMessage = "Returned to previous screen.";
-      return;
-    }
-
-    if (state.view === "standby") {
-      setToast("Standby screen. Hold power key on original devices to switch off.", "info");
-      return;
-    }
-
-    goToStandby({ clearHistory: true });
-  }
-
-  function getSelectedContactList() {
-    if (state.contactsTab === "favorites") {
-      return CONTACTS.slice(0, 3);
-    }
-
-    if (state.contactsTab === "sim") {
-      return CONTACTS.slice(-3);
-    }
-
-    return CONTACTS;
-  }
-
-  function getCurrentFileNode() {
-    const fallbackId = fileTree?.id || "root";
-
-    if (!Array.isArray(state.filesPathIds) || state.filesPathIds.length === 0) {
-      state.filesPathIds = [fallbackId];
-    }
-
-    if (state.filesPathIds[0] !== fallbackId) {
-      state.filesPathIds[0] = fallbackId;
-    }
-
-    const node = findNodeByPath(fileTree, state.filesPathIds);
-
-    if (!node) {
-      state.filesPathIds = [fallbackId];
-      return fileTree;
-    }
-
-    return node;
-  }
-
-  function getCurrentFileEntries() {
-    const node = getCurrentFileNode();
-    const children = Array.isArray(node?.children) ? node.children : [];
-
-    return children.map((entry) => ({
-      id: entry.id,
-      label: entry.name,
-      subtitle:
-        entry.type === "folder"
-          ? `${(entry.children || []).length} item(s)`
-          : `File size ${entry.size || "unknown"}`,
-      trailing: entry.type === "folder" ? "Folder" : entry.size || "--",
-      iconToken: entry.type === "folder" ? "DIR" : "FIL",
-    }));
-  }
-
-  function getCurrentFilePathLabel() {
-    const names = state.filesPathIds
-      .map((pathId) => findNodeById(fileTree, pathId))
-      .filter(Boolean)
-      .map((node) => node.name);
-
-    if (!names.length) {
-      return "Device";
-    }
-
-    return names.join(" / ");
-  }
-
-  function clampSelections() {
-    state.menuIndex = safeIndex(state.menuIndex, APP_MENU_ITEMS.length);
-    state.homeShortcutIndex = safeIndex(state.homeShortcutIndex, STANDBY_SHORTCUTS.length);
-
-    const contactsLength = getSelectedContactList().length;
-    state.contactsSelectedByTab[state.contactsTab] = safeIndex(
-      state.contactsSelectedByTab[state.contactsTab],
-      contactsLength,
-    );
-
-    const folderRows = messageFolders[state.messagesFolder] || [];
-    state.messagesSelectedByFolder[state.messagesFolder] = safeIndex(
-      state.messagesSelectedByFolder[state.messagesFolder],
-      folderRows.length,
-    );
-
-    const galleryRows = galleryByAlbum[state.galleryAlbum] || [];
-    state.gallerySelectedByAlbum[state.galleryAlbum] = safeIndex(
-      state.gallerySelectedByAlbum[state.galleryAlbum],
-      galleryRows.length,
-    );
-
-    state.musicSelectedIndex = safeIndex(state.musicSelectedIndex, MUSIC_LIBRARY.length);
-
-    const browserRows = state.browserTab === "history" ? browserHistoryRows : BROWSER_BOOKMARKS;
-    state.browserSelectedByTab[state.browserTab] = safeIndex(
-      state.browserSelectedByTab[state.browserTab],
-      browserRows.length,
-    );
-
-    const fileRows = getCurrentFileEntries();
-    state.filesSelectedIndex = safeIndex(state.filesSelectedIndex, fileRows.length);
-
-    state.notesSelectedIndex = safeIndex(state.notesSelectedIndex, notesEntries.length);
-
-    state.settingsCategoryIndex = safeIndex(state.settingsCategoryIndex, settingsCategories.length);
-    const activeCategory = settingsCategories[state.settingsCategoryIndex];
-    const activeItems = Array.isArray(activeCategory?.items) ? activeCategory.items : [];
-    state.settingsDetailIndex = safeIndex(state.settingsDetailIndex, activeItems.length);
-
-    state.extrasIndex = safeIndex(state.extrasIndex, EXTRAS_TOOLS.length);
-    state.profilesIndex = safeIndex(state.profilesIndex, PROFILE_PRESETS.length);
-    state.callLogIndex = safeIndex(state.callLogIndex, CALL_LOG.length);
-
-    if (!MESSAGE_FOLDERS.some((folder) => folder.id === state.messagesFolder)) {
-      state.messagesFolder = MESSAGE_FOLDERS[0].id;
-    }
-
-    if (!GALLERY_ALBUMS.some((album) => album.id === state.galleryAlbum)) {
-      state.galleryAlbum = GALLERY_ALBUMS[0].id;
-    }
-
-    if (!BROWSER_TABS.some((tab) => tab.id === state.browserTab)) {
-      state.browserTab = BROWSER_TABS[0].id;
-    }
-
-    if (!CONTACT_TABS.some((tab) => tab.id === state.contactsTab)) {
-      state.contactsTab = CONTACT_TABS[0].id;
-    }
-
-    if (!CALENDAR_TABS.some((tab) => tab.id === state.calendarTab)) {
-      state.calendarTab = CALENDAR_TABS[0].id;
-    }
-  }
-
-  function cycleTab(tabList, currentId, direction) {
-    const currentIndex = tabList.findIndex((entry) => entry.id === currentId);
-    const safeCurrent = currentIndex >= 0 ? currentIndex : 0;
-    const nextIndex = (safeCurrent + direction + tabList.length) % tabList.length;
-    return tabList[nextIndex].id;
-  }
-
-  function moveCalendarDate(stepDays) {
-    const selectedDate = new Date(`${state.calendarSelectedIsoDate}T12:00:00`);
-    selectedDate.setDate(selectedDate.getDate() + stepDays);
-    state.calendarSelectedIsoDate = `${selectedDate.getFullYear()}-${String(
-      selectedDate.getMonth() + 1,
-    ).padStart(2, "0")}-${String(selectedDate.getDate()).padStart(2, "0")}`;
-  }
-
-  function moveSelectionForCurrentContext(key) {
-    if (state.phase !== "ready") {
-      return;
-    }
-
-    if (state.view === "standby") {
-      if (key === "ArrowUp" || key === "ArrowDown") {
-        state.view = "home";
-        state.statusMessage = "Active standby opened.";
-      } else if (key === "ArrowLeft") {
-        openMenu();
-      } else if (key === "ArrowRight") {
-        openApp("contacts");
+    if (state.currentAppId === "gallery") {
+      const item = GALLERY_ITEMS[state.apps.gallery.cursor];
+      if (item) {
+        setToast(`Preview ${item.label}`, "info", 900);
       }
       return;
     }
 
-    if (state.view === "home") {
-      state.homeShortcutIndex = moveGridIndex(
-        state.homeShortcutIndex,
-        key,
-        STANDBY_SHORTCUTS.length,
-        HOME_GRID_COLUMNS,
-      );
-
-      if (key === "ArrowDown") {
-        state.statusMessage = "Use center key to launch highlighted shortcut.";
+    if (state.currentAppId === "notes") {
+      const note = state.apps.notes.notes[state.apps.notes.cursor];
+      if (note) {
+        setPopup(`${note.title}: ${note.text}`, "info", 2000);
       }
       return;
     }
 
-    if (state.view === "menu") {
-      state.menuIndex = moveGridIndex(state.menuIndex, key, APP_MENU_ITEMS.length, MENU_GRID_COLUMNS);
+    if (state.currentAppId === "settings") {
+      setToast("Settings applied", "success", 1000);
       return;
     }
 
-    if (state.view !== "app") {
-      return;
-    }
-
-    if (state.currentApp === "contacts") {
-      if (key === "ArrowLeft") {
-        state.contactsTab = cycleTab(CONTACT_TABS, state.contactsTab, -1);
-      } else if (key === "ArrowRight") {
-        state.contactsTab = cycleTab(CONTACT_TABS, state.contactsTab, 1);
-      } else if (key === "ArrowUp") {
-        state.contactsSelectedByTab[state.contactsTab] -= 1;
-      } else if (key === "ArrowDown") {
-        state.contactsSelectedByTab[state.contactsTab] += 1;
+    if (state.currentAppId === "files") {
+      const volume = FILE_VOLUMES[state.apps.files.cursor];
+      if (volume) {
+        setToast(`Opening ${volume.name}`, "info", 1000);
       }
       return;
     }
 
-    if (state.currentApp === "messages") {
-      if (key === "ArrowLeft") {
-        state.messagesFolder = cycleTab(MESSAGE_FOLDERS, state.messagesFolder, -1);
-      } else if (key === "ArrowRight") {
-        state.messagesFolder = cycleTab(MESSAGE_FOLDERS, state.messagesFolder, 1);
-      } else if (key === "ArrowUp") {
-        state.messagesSelectedByFolder[state.messagesFolder] -= 1;
-      } else if (key === "ArrowDown") {
-        state.messagesSelectedByFolder[state.messagesFolder] += 1;
-      }
-      return;
-    }
-
-    if (state.currentApp === "calendar") {
-      if (state.calendarTab === "month") {
-        if (key === "ArrowLeft") {
-          moveCalendarDate(-1);
-        } else if (key === "ArrowRight") {
-          moveCalendarDate(1);
-        } else if (key === "ArrowUp") {
-          moveCalendarDate(-7);
-        } else if (key === "ArrowDown") {
-          moveCalendarDate(7);
-        }
-      } else {
-        if (key === "ArrowLeft") {
-          state.calendarTab = cycleTab(CALENDAR_TABS, state.calendarTab, -1);
-        } else if (key === "ArrowRight") {
-          state.calendarTab = cycleTab(CALENDAR_TABS, state.calendarTab, 1);
-        } else if (key === "ArrowUp") {
-          state.calendarAgendaIndex -= 1;
-        } else if (key === "ArrowDown") {
-          state.calendarAgendaIndex += 1;
-        }
-      }
-      return;
-    }
-
-    if (state.currentApp === "gallery") {
-      const currentItems = galleryByAlbum[state.galleryAlbum] || [];
-
-      if (key === "ArrowLeft" || key === "ArrowRight") {
-        const direction = key === "ArrowLeft" ? -1 : 1;
-        state.galleryAlbum = cycleTab(GALLERY_ALBUMS, state.galleryAlbum, direction);
-      } else {
-        state.gallerySelectedByAlbum[state.galleryAlbum] = moveGridIndex(
-          state.gallerySelectedByAlbum[state.galleryAlbum],
-          key,
-          currentItems.length,
-          MENU_GRID_COLUMNS,
+    if (state.currentAppId === "connectivity") {
+      const row = CONNECTIVITY_ROWS[state.apps.connectivity.cursor];
+      if (row) {
+        state.apps.connectivity.toggles[row.key] = !state.apps.connectivity.toggles[row.key];
+        setToast(
+          `${row.label} ${state.apps.connectivity.toggles[row.key] ? "enabled" : "disabled"}`,
+          "info",
+          900,
         );
       }
       return;
     }
 
-    if (state.currentApp === "music") {
-      if (key === "ArrowUp") {
-        state.musicSelectedIndex -= 1;
-      } else if (key === "ArrowDown") {
-        state.musicSelectedIndex += 1;
-      }
-      return;
-    }
-
-    if (state.currentApp === "browser") {
-      if (key === "ArrowLeft") {
-        state.browserTab = cycleTab(BROWSER_TABS, state.browserTab, -1);
-      } else if (key === "ArrowRight") {
-        state.browserTab = cycleTab(BROWSER_TABS, state.browserTab, 1);
-      } else if (key === "ArrowUp") {
-        state.browserSelectedByTab[state.browserTab] -= 1;
-      } else if (key === "ArrowDown") {
-        state.browserSelectedByTab[state.browserTab] += 1;
-      }
-      return;
-    }
-
-    if (state.currentApp === "files") {
-      if (key === "ArrowUp") {
-        state.filesSelectedIndex -= 1;
-      } else if (key === "ArrowDown") {
-        state.filesSelectedIndex += 1;
-      } else if (key === "ArrowLeft" && state.filesPathIds.length > 1) {
-        state.filesPathIds.pop();
-        state.filesSelectedIndex = 0;
-      }
-      return;
-    }
-
-    if (state.currentApp === "notes") {
-      if (key === "ArrowUp") {
-        state.notesSelectedIndex -= 1;
-      } else if (key === "ArrowDown") {
-        state.notesSelectedIndex += 1;
-      }
-      return;
-    }
-
-    if (state.currentApp === "settings") {
-      if (key === "ArrowLeft") {
-        state.settingsFocus = "categories";
-      } else if (key === "ArrowRight") {
-        state.settingsFocus = "details";
-      } else if (key === "ArrowUp") {
-        if (state.settingsFocus === "categories") {
-          state.settingsCategoryIndex -= 1;
-          state.settingsDetailIndex = 0;
-        } else {
-          state.settingsDetailIndex -= 1;
-        }
-      } else if (key === "ArrowDown") {
-        if (state.settingsFocus === "categories") {
-          state.settingsCategoryIndex += 1;
-          state.settingsDetailIndex = 0;
-        } else {
-          state.settingsDetailIndex += 1;
-        }
-      }
-      return;
-    }
-
-    if (state.currentApp === "extras") {
-      if (key === "ArrowUp") {
-        state.extrasIndex -= 1;
-      } else if (key === "ArrowDown") {
-        state.extrasIndex += 1;
-      }
-      return;
-    }
-
-    if (state.currentApp === "profiles") {
-      if (key === "ArrowUp") {
-        state.profilesIndex -= 1;
-      } else if (key === "ArrowDown") {
-        state.profilesIndex += 1;
-      }
-      return;
-    }
-
-    if (state.currentApp === "log") {
-      if (key === "ArrowUp") {
-        state.callLogIndex -= 1;
-      } else if (key === "ArrowDown") {
-        state.callLogIndex += 1;
-      }
-    }
-  }
-
-  function activateProfileByIndex(index) {
-    const safe = safeIndex(index, PROFILE_PRESETS.length);
-    const profile = PROFILE_PRESETS[safe];
-
-    if (!profile) {
-      return;
-    }
-
-    state.profilesIndex = safe;
-    state.activeProfileId = profile.id;
-    state.statusMessage = `Profile '${profile.label}' activated.`;
-    setToast(`${profile.label} profile active`, "success");
-  }
-
-  function changeSelectedSettingValue(direction = 1) {
-    const category = settingsCategories[state.settingsCategoryIndex];
-    const item = category?.items?.[state.settingsDetailIndex];
-
-    if (!item) {
-      return;
-    }
-
-    if (item.type === "toggle") {
-      item.value = !item.value;
-    } else if (Array.isArray(item.options) && item.options.length > 0) {
-      const currentIndex = item.options.findIndex((option) => option === item.value);
-      const safeCurrent = currentIndex >= 0 ? currentIndex : 0;
-      const nextIndex = (safeCurrent + direction + item.options.length) % item.options.length;
-      item.value = item.options[nextIndex];
-    }
-
-    setToast(`${item.label}: ${item.value === true ? "On" : item.value === false ? "Off" : item.value}`, "info");
-  }
-
-  function openSelectedEntry() {
-    if (state.phase !== "ready") {
-      return;
-    }
-
-    if (state.dialog) {
-      clearDialog();
-      return;
-    }
-
-    if (state.view === "standby") {
-      openMenu();
-      return;
-    }
-
-    if (state.view === "home") {
-      const shortcut = STANDBY_SHORTCUTS[safeIndex(state.homeShortcutIndex, STANDBY_SHORTCUTS.length)];
-      if (shortcut?.id) {
-        openApp(shortcut.id);
-      }
-      return;
-    }
-
-    if (state.view === "menu") {
-      const app = APP_MENU_ITEMS[safeIndex(state.menuIndex, APP_MENU_ITEMS.length)];
-      if (app?.id) {
-        openApp(app.id);
-      }
-      return;
-    }
-
-    if (state.currentApp === "contacts") {
-      const contacts = getSelectedContactList();
-      const selected = contacts[safeIndex(state.contactsSelectedByTab[state.contactsTab], contacts.length)];
-
-      if (!selected) {
+    if (state.currentAppId === "tools") {
+      const tool = TOOLS[state.apps.tools.cursor];
+      if (!tool) {
         return;
       }
 
-      setDialog({
-        title: selected.name,
-        lines: [
-          selected.number,
-          selected.company,
-          selected.email,
-          `${selected.location} • ${selected.lastCall}`,
-          selected.note,
-        ],
-      });
+      if (tool.id === "task-switcher") {
+        toggleTaskSwitcher();
+      } else if (tool.id === "memory") {
+        setPopup("RAM free: 27 MB | Heap free: 9 MB", "info", 1800);
+      } else if (tool.id === "profiles") {
+        setToast(`Active profile: ${state.profileName}`, "info", 1200);
+      } else if (tool.id === "device") {
+        setPopup("Nokia RM-133, Symbian 9.1, S60 3rd Edition", "info", 2200);
+      }
       return;
     }
 
-    if (state.currentApp === "messages") {
-      const rows = messageFolders[state.messagesFolder] || [];
-      const selectedRow = rows[safeIndex(state.messagesSelectedByFolder[state.messagesFolder], rows.length)];
+    if (state.currentAppId === "clock") {
+      setToast(`Alarm set to ${state.apps.clock.alarmTime}`, "success");
+    }
+  }
 
-      if (!selectedRow) {
-        return;
-      }
+  function handleAppSoftkeyLeft() {
+    if (!state.currentAppId) {
+      return;
+    }
 
-      if (state.messagesFolder === "inbox") {
-        const thread = MESSAGE_THREADS.find((entry) => entry.id === selectedRow.id);
-        const previewRows = thread ? createMessagesRows(thread).slice(-4) : [];
-
-        setDialog({
-          title: thread?.from || selectedRow.label,
-          lines: previewRows.map((line) => `${line.label}: ${line.subtitle}`),
-        });
+    if (state.currentAppId === "contacts") {
+      if (state.apps.contacts.query) {
+        state.apps.contacts.query = "";
+        state.apps.contacts.cursor = 0;
       } else {
-        setDialog({
-          title: selectedRow.label,
-          lines: [selectedRow.subtitle, `Saved ${selectedRow.trailing}`],
-        });
+        setPopup("Options: New contact | Send business card", "info", 1700);
       }
       return;
     }
 
-    if (state.currentApp === "calendar") {
-      if (state.calendarTab === "month") {
-        state.calendarTab = "agenda";
-        state.statusMessage = `Agenda for ${formatLongDate(state.calendarSelectedIsoDate)}.`;
-        return;
-      }
-
-      const selected = sortedEvents[safeIndex(state.calendarAgendaIndex, sortedEvents.length)];
-      if (!selected) {
-        return;
-      }
-
-      setDialog({
-        title: selected.title,
-        lines: [
-          `${formatLongDate(selected.date)} at ${selected.time}`,
-          `Location: ${selected.location}`,
-          "Reminder: 15 minutes before",
-        ],
-      });
-      return;
-    }
-
-    if (state.currentApp === "gallery") {
-      const rows = galleryByAlbum[state.galleryAlbum] || [];
-      const selected = rows[safeIndex(state.gallerySelectedByAlbum[state.galleryAlbum], rows.length)];
-      if (!selected) {
-        return;
-      }
-
-      setDialog({
-        title: selected.label,
-        lines: [selected.subtitle, selected.trailing, `Album: ${state.galleryAlbum}`],
-      });
-      return;
-    }
-
-    if (state.currentApp === "music") {
-      const track = MUSIC_LIBRARY[safeIndex(state.musicSelectedIndex, MUSIC_LIBRARY.length)];
-      if (!track) {
-        return;
-      }
-
-      state.musicIsPlaying = true;
-      state.musicElapsedSec = Math.min(state.musicElapsedSec, track.lengthSec);
-      state.statusMessage = `Now playing: ${track.title}`;
-      setToast(`Playing ${track.title}`, "success");
-      return;
-    }
-
-    if (state.currentApp === "browser") {
-      const rows = state.browserTab === "history" ? browserHistoryRows : BROWSER_BOOKMARKS;
-      const selected = rows[safeIndex(state.browserSelectedByTab[state.browserTab], rows.length)];
-      if (!selected) {
-        return;
-      }
-
-      state.browserLoading = true;
-      clearTimer("browserLoadingTimeoutId");
-      timers.browserLoadingTimeoutId = window.setTimeout(() => {
-        state.browserLoading = false;
-        state.statusMessage = `Loaded ${selected.title || selected.label}.`;
-        setToast("Page loaded", "success");
-        render();
-      }, 900);
-      return;
-    }
-
-    if (state.currentApp === "files") {
-      const entries = getCurrentFileEntries();
-      const selected = entries[safeIndex(state.filesSelectedIndex, entries.length)];
-      if (!selected) {
-        return;
-      }
-
-      const node = findNodeById(fileTree, selected.id);
-      if (!node) {
-        return;
-      }
-
-      if (node.type === "folder") {
-        state.filesPathIds.push(node.id);
-        state.filesSelectedIndex = 0;
-        state.statusMessage = `Opened ${node.name}`;
+    if (state.currentAppId === "messaging") {
+      if (state.apps.messaging.mode === "inbox") {
+        state.apps.messaging.mode = "compose";
+        state.apps.messaging.focus = "recipient";
       } else {
-        setDialog({
-          title: node.name,
-          lines: [
-            `Type: File`,
-            `Size: ${node.size || "Unknown"}`,
-            `Path: ${getCurrentFilePathLabel()}`,
-          ],
-        });
+        const inputModes = ["abc", "123"];
+        const currentIndex = inputModes.indexOf(state.apps.messaging.inputMode);
+        const nextIndex = cycleIndex(currentIndex, inputModes.length, 1);
+        state.apps.messaging.inputMode = inputModes[nextIndex];
       }
       return;
     }
 
-    if (state.currentApp === "notes") {
-      const selected = notesEntries[safeIndex(state.notesSelectedIndex, notesEntries.length)];
-      if (!selected) {
-        return;
-      }
+    if (state.currentAppId === "calendar") {
+      const now = new Date();
+      state.apps.calendar.selectedDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      return;
+    }
 
-      setDialog({
-        title: selected.title,
-        lines: [selected.body, `Updated ${selected.updatedAt}`],
+    if (state.currentAppId === "music") {
+      state.apps.music.trackIndex = cycleIndex(state.apps.music.trackIndex, TRACKS.length, -1);
+      state.apps.music.progressSec = 0;
+      return;
+    }
+
+    if (state.currentAppId === "browser") {
+      state.apps.browser.cursor = 0;
+      state.apps.browser.currentTitle = BOOKMARKS[0].title;
+      state.apps.browser.currentUrl = BOOKMARKS[0].url;
+      state.apps.browser.state = "Ready";
+      return;
+    }
+
+    if (state.currentAppId === "gallery") {
+      setPopup("Albums: Camera | Downloads | Favorites", "info", 1700);
+      return;
+    }
+
+    if (state.currentAppId === "notes") {
+      const timestamp = `${formatDateShort(state.now)} ${formatClock(state.now)}`;
+      state.apps.notes.notes.unshift({
+        title: `New ${state.apps.notes.notes.length + 1}`,
+        text: `Quick note created on ${timestamp}.`,
       });
+      state.apps.notes.cursor = 0;
+      setToast("Note created", "success", 1000);
       return;
     }
 
-    if (state.currentApp === "settings") {
-      changeSelectedSettingValue(1);
+    if (state.currentAppId === "settings") {
+      changeSettingOption("right");
       return;
     }
 
-    if (state.currentApp === "extras") {
-      const selected = EXTRAS_TOOLS[safeIndex(state.extrasIndex, EXTRAS_TOOLS.length)];
-      if (!selected) {
+    if (state.currentAppId === "files") {
+      setPopup("Options: Copy | Move | Delete | Details", "info", 1700);
+      return;
+    }
+
+    if (state.currentAppId === "connectivity") {
+      const row = CONNECTIVITY_ROWS[state.apps.connectivity.cursor];
+      if (!row) {
         return;
       }
 
-      if (selected.id === "flashlight") {
-        setToast("Backlight mode toggled.", "warning");
-      } else if (selected.id === "voice-recorder") {
-        setToast("Voice memo saved to C:/Notes.", "success");
+      state.apps.connectivity.toggles[row.key] = !state.apps.connectivity.toggles[row.key];
+      return;
+    }
+
+    if (state.currentAppId === "tools") {
+      activateCurrentAppSelection();
+      return;
+    }
+
+    if (state.currentAppId === "clock") {
+      const hour = (state.now.getHours() + 1) % 24;
+      state.apps.clock.alarmTime = `${toTwoDigits(hour)}:${toTwoDigits(state.now.getMinutes())}`;
+      setToast(`Alarm updated ${state.apps.clock.alarmTime}`, "info", 1200);
+    }
+  }
+
+  function handleAppBackspace() {
+    if (state.currentAppId === "contacts") {
+      if (!state.apps.contacts.query) {
+        return false;
+      }
+
+      state.apps.contacts.query = state.apps.contacts.query.slice(0, -1);
+      state.apps.contacts.cursor = 0;
+      return true;
+    }
+
+    if (state.currentAppId === "messaging" && state.apps.messaging.mode === "compose") {
+      const focus = state.apps.messaging.focus;
+
+      if (focus === "recipient") {
+        state.apps.messaging.recipient = state.apps.messaging.recipient.slice(0, -1);
       } else {
-        setToast(`${selected.label} launched.`, "info");
-      }
-      return;
-    }
-
-    if (state.currentApp === "profiles") {
-      activateProfileByIndex(state.profilesIndex);
-      return;
-    }
-
-    if (state.currentApp === "log") {
-      const selected = CALL_LOG[safeIndex(state.callLogIndex, CALL_LOG.length)];
-      if (!selected) {
-        return;
+        state.apps.messaging.body = state.apps.messaging.body.slice(0, -1);
       }
 
-      setToast(`Calling ${selected.who}...`, "info");
+      return true;
     }
+
+    return false;
   }
 
-  function triggerLeftSoftkey() {
-    if (state.phase !== "ready") {
-      return;
+  function handleAppPrintableInput(character) {
+    if (!state.currentAppId) {
+      return false;
     }
 
-    if (state.view === "standby" || state.view === "home") {
-      openMenu();
-      return;
+    if (state.currentAppId === "contacts") {
+      state.apps.contacts.query += character;
+      state.apps.contacts.cursor = 0;
+      return true;
     }
 
-    if (state.view === "menu") {
-      setToast("Options: Move, Folder view, Mark/Unmark.", "info");
-      return;
-    }
+    if (state.currentAppId === "messaging" && state.apps.messaging.mode === "compose") {
+      if (state.apps.messaging.inputMode === "123" && !/^[0-9 ]$/.test(character)) {
+        return true;
+      }
 
-    if (state.currentApp === "contacts") {
-      setToast("Options: New contact, Send business card.", "info");
-      return;
-    }
-
-    if (state.currentApp === "messages") {
-      setToast("Options: Write message, Inbox settings.", "info");
-      return;
-    }
-
-    if (state.currentApp === "calendar") {
-      setToast("Options: New meeting, New reminder.", "info");
-      return;
-    }
-
-    if (state.currentApp === "gallery") {
-      setToast("Options: Send, Rename, Organize.", "info");
-      return;
-    }
-
-    if (state.currentApp === "music") {
-      state.musicIsPlaying = !state.musicIsPlaying;
-      setToast(state.musicIsPlaying ? "Playback resumed." : "Playback paused.", "info");
-      return;
-    }
-
-    if (state.currentApp === "browser") {
-      state.browserTab = cycleTab(BROWSER_TABS, state.browserTab, 1);
-      state.statusMessage = `Browser tab: ${state.browserTab}`;
-      return;
-    }
-
-    if (state.currentApp === "files") {
-      if (state.filesPathIds.length > 1) {
-        state.filesPathIds.pop();
-        state.filesSelectedIndex = 0;
+      if (state.apps.messaging.focus === "recipient") {
+        state.apps.messaging.recipient += character;
       } else {
-        setToast("Root drive overview.", "info");
+        state.apps.messaging.body += character;
       }
-      return;
+
+      return true;
     }
 
-    if (state.currentApp === "notes") {
-      const timestamp = formatClockTime(new Date());
-      notesEntries.unshift({
-        id: `note-auto-${Date.now()}`,
-        title: "Quick note",
-        body: "Softkey-created note. Edit flow can be extended next.",
-        updatedAt: `Today, ${timestamp}`,
-      });
-      state.notesSelectedIndex = 0;
-      setToast("New note created.", "success");
-      return;
-    }
-
-    if (state.currentApp === "settings") {
-      changeSelectedSettingValue(-1);
-      return;
-    }
-
-    if (state.currentApp === "extras") {
-      setToast("Options: Organize, About, Memory details.", "info");
-      return;
-    }
-
-    if (state.currentApp === "profiles") {
-      const selected = PROFILE_PRESETS[safeIndex(state.profilesIndex, PROFILE_PRESETS.length)];
-      if (selected) {
-        setToast(`Previewing '${selected.label}' profile.`, "info");
-      }
-      return;
-    }
-
-    if (state.currentApp === "log") {
-      setToast("Options: Clear list, Filter, Save number.", "info");
-    }
+    return false;
   }
 
-  function triggerRightSoftkey() {
-    if (state.phase !== "ready") {
-      return;
-    }
-
-    if (state.view === "standby") {
-      openApp("contacts");
-      return;
-    }
-
-    goBack();
-  }
-
-  function triggerCenterSoftkey() {
-    if (state.phase === "booting") {
-      state.bootLineCount = BOOT_LINES.length;
-      clearTimer("bootIntervalId");
-      clearTimer("bootDoneTimeoutId");
-      timers.bootDoneTimeoutId = window.setTimeout(() => {
-        state.phase = "ready";
-        goToStandby({ clearHistory: true });
-        render();
-      }, 150);
-      return;
-    }
-
-    openSelectedEntry();
-  }
-
-  function applySoftkey(action) {
-    if (action === "left") {
-      triggerLeftSoftkey();
-    } else if (action === "center") {
-      triggerCenterSoftkey();
-    } else if (action === "right") {
-      triggerRightSoftkey();
-    }
-  }
-
-  function renderBootScreen() {
-    const displayedLines = BOOT_LINES.slice(0, state.bootLineCount);
-    const progress = clamp(Math.round((displayedLines.length / BOOT_LINES.length) * 100), 0, 100);
-
-    return `
-      <section class="symbian-screen symbian-screen--boot" data-view-id="boot">
-        <header class="symbian-header">
-          <h2 class="symbian-header__title">Symbian OS</h2>
-          <span class="symbian-header__meta">S60 3rd Edition</span>
-        </header>
-        <section class="symbian-pane symbian-boot">
-          <p class="symbian-boot__logo">NOKIA</p>
-          <p class="symbian-boot__subtitle">Starting services...</p>
-          <pre class="symbian-boot__log">${safeText(displayedLines.join("\n"))}</pre>
-          <div class="symbian-meter" style="--symbian-meter-value: ${progress}%">
-            <span class="symbian-meter__fill"></span>
-          </div>
-          <p class="symbian-boot__hint">Center key speeds up boot.</p>
-        </section>
-      </section>
-    `;
-  }
-
-  function renderProfilesApp() {
-    const rows = PROFILE_PRESETS.map((profile, index) => ({
-      id: profile.id,
-      label: profile.label,
-      subtitle: `Ring volume ${profile.ringVolume}/10`,
-      trailing: profile.vibra ? "Vibra on" : "Vibra off",
-      iconToken: "PR",
-      badge: profile.id === state.activeProfileId ? "Active" : "",
-      isUnread: profile.id === state.activeProfileId,
-      disabled: false,
-    }));
-
-    const selected = PROFILE_PRESETS[safeIndex(state.profilesIndex, PROFILE_PRESETS.length)];
-
-    return renderExtrasApp({
-      tools: rows,
-      selectedIndex: state.profilesIndex,
-      tip: selected
-        ? `Selected profile '${selected.label}'. Press center to activate and apply sound/vibration behavior.`
-        : "No profile selected.",
-      softkeys: {
-        left: "Options",
-        center: "Activate",
-        right: "Back",
-      },
-      statusMessage: "Profiles manager.",
-    });
-  }
-
-  function renderCallLogApp() {
-    const rows = CALL_LOG.map((entry) => ({
-      id: entry.id,
-      label: entry.who,
-      subtitle: `${entry.type.toUpperCase()} • ${entry.at}`,
-      trailing: entry.duration,
-      iconToken: "CL",
-    }));
-
-    const selected = CALL_LOG[safeIndex(state.callLogIndex, CALL_LOG.length)];
-
-    return renderExtrasApp({
-      tools: rows,
-      selectedIndex: state.callLogIndex,
-      tip: selected
-        ? `Last ${selected.type} call with ${selected.who}. Center key starts callback.`
-        : "Call log is empty.",
-      softkeys: {
-        left: "Options",
-        center: "Call",
-        right: "Back",
-      },
-      statusMessage: "Call log.",
-    });
-  }
-
-  function renderCurrentView() {
-    if (state.phase === "booting") {
-      return renderBootScreen();
-    }
-
-    const activeProfile = getActiveProfile();
-    const batteryLevel = getBatteryLevel();
-    const signalLevel = getSignalLevel();
-
-    if (state.view === "standby") {
-      return renderStandbyScreen({
-        timeLabel: formatClockTime(state.now),
-        dateLabel: formatClockDate(state.now),
-        profileLabel: `Profile: ${activeProfile.label}`,
-        operatorLabel: getOperatorLabel(),
-        signalLabel: `Signal ${signalLevel}/5`,
-        batteryLabel: `Battery ${batteryLevel}%`,
-        notifications: STANDBY_SHORTCUTS.map((entry) => ({
-          id: entry.id,
-          label: entry.label,
-          subtitle: entry.detail,
-          trailing: "Open",
-          iconToken: "*",
-        })),
-        softkeys: {
-          left: "Menu",
-          center: "Select",
-          right: "Names",
-        },
-        statusMessage: state.statusMessage,
-      });
-    }
-
-    if (state.view === "home") {
-      return renderHomeScreen({
-        title: "Active Standby",
-        profileLabel: activeProfile.label,
-        shortcuts: STANDBY_SHORTCUTS.map((entry) => ({
-          id: entry.id,
-          label: entry.label,
-          iconToken: entry.label.slice(0, 2).toUpperCase(),
-        })),
-        selectedShortcutIndex: state.homeShortcutIndex,
-        agendaItems: sortedEvents.slice(0, 5).map((event) => ({
-          id: event.id,
-          label: `${event.time} ${event.title}`,
-          subtitle: `${formatLongDate(event.date)} • ${event.location}`,
-          trailing: event.time,
-          iconToken: "AG",
-        })),
-        selectedAgendaIndex: state.calendarAgendaIndex,
-        softkeys: {
-          left: "Menu",
-          center: "Open",
-          right: "Back",
-        },
-        statusMessage: state.statusMessage,
-      });
-    }
-
-    if (state.view === "menu") {
-      return renderMenuGridScreen({
-        title: "Menu",
-        apps: APP_MENU_ITEMS.map((app) => ({
-          id: app.id,
-          label: app.label,
-          iconToken: (app.icon || "AP").slice(0, 3).toUpperCase(),
-        })),
-        selectedIndex: state.menuIndex,
-        page: 1,
-        pageSize: 12,
-        softkeys: {
-          left: "Options",
-          center: "Open",
-          right: "Exit",
-        },
-        statusMessage: state.statusMessage,
-      });
-    }
-
-    if (state.currentApp === "contacts") {
-      const contacts = getSelectedContactList();
-      const selectedIndex = state.contactsSelectedByTab[state.contactsTab];
-
-      return renderContactsApp({
-        contacts: contacts.map((contact) => ({
-          id: contact.id,
-          label: contact.name,
-          subtitle: contact.number,
-          trailing: contact.lastCall,
-          iconToken: "CT",
-        })),
-        selectedIndex,
-        filterQuery: state.contactsTab === "all" ? "" : state.contactsTab,
-        tabs: CONTACT_TABS,
-        activeTabId: state.contactsTab,
-        softkeys: {
-          left: "Options",
-          center: "Open",
-          right: "Back",
-        },
-        statusMessage: state.statusMessage,
-      });
-    }
-
-    if (state.currentApp === "messages") {
-      return renderMessagesApp({
-        folders: MESSAGE_FOLDERS,
-        activeFolderId: state.messagesFolder,
-        messagesByFolder: messageFolders,
-        selectedIndex: state.messagesSelectedByFolder[state.messagesFolder],
-        softkeys: {
-          left: "Options",
-          center: "Open",
-          right: "Back",
-        },
-        statusMessage: state.statusMessage,
-      });
-    }
-
-    if (state.currentApp === "calendar") {
-      const agendaRows = sortedEvents.map((event) => ({
-        id: event.id,
-        label: `${event.time} ${event.title}`,
-        subtitle: `${formatLongDate(event.date)} • ${event.location}`,
-        trailing: event.time,
-        iconToken: "EV",
-      }));
-
-      return renderCalendarApp({
-        dateLabel: formatLongDate(state.calendarSelectedIsoDate),
-        tabs: CALENDAR_TABS,
-        activeTabId: state.calendarTab,
-        agendaItems: agendaRows,
-        selectedAgendaIndex: state.calendarAgendaIndex,
-        monthGrid: buildMonthGridCells(state.calendarSelectedIsoDate, sortedEvents),
-        selectedDate: state.calendarSelectedIsoDate,
-        softkeys: {
-          left: "Options",
-          center: "Open",
-          right: "Back",
-        },
-        statusMessage: state.statusMessage,
-      });
-    }
-
-    if (state.currentApp === "gallery") {
-      return renderGalleryApp({
-        albums: GALLERY_ALBUMS,
-        activeAlbumId: state.galleryAlbum,
-        itemsByAlbum: galleryByAlbum,
-        selectedIndex: state.gallerySelectedByAlbum[state.galleryAlbum],
-        softkeys: {
-          left: "Options",
-          center: "View",
-          right: "Back",
-        },
-        statusMessage: state.statusMessage,
-      });
-    }
-
-    if (state.currentApp === "music") {
-      const selectedTrack = MUSIC_LIBRARY[safeIndex(state.musicSelectedIndex, MUSIC_LIBRARY.length)];
-      const elapsed = clamp(state.musicElapsedSec, 0, selectedTrack?.lengthSec || 0);
-      const progressLabel = `${formatTrackLength(elapsed)} / ${formatTrackLength(selectedTrack?.lengthSec || 0)}`;
-
-      return renderMusicApp({
-        tracks: MUSIC_LIBRARY.map((track) => ({
-          id: track.id,
-          label: track.title,
-          subtitle: track.artist,
-          trailing: formatTrackLength(track.lengthSec),
-          iconToken: "MU",
-        })),
-        selectedTrackIndex: state.musicSelectedIndex,
-        nowPlaying: selectedTrack
-          ? {
-              id: selectedTrack.id,
-              label: selectedTrack.title,
-              subtitle: selectedTrack.artist,
-            }
-          : null,
-        isPlaying: state.musicIsPlaying,
-        progressLabel,
-        softkeys: {
-          left: "Options",
-          center: state.musicIsPlaying ? "Pause" : "Play",
-          right: "Back",
-        },
-        statusMessage: state.statusMessage,
-      });
-    }
-
-    if (state.currentApp === "browser") {
-      const itemsByTab = {
-        bookmarks: BROWSER_BOOKMARKS.map((bookmark) => ({
-          id: bookmark.id,
-          label: bookmark.title,
-          subtitle: bookmark.url,
-          trailing: bookmark.lastVisited,
-          iconToken: "WB",
-        })),
-        history: browserHistoryRows,
+  function getSoftkeys() {
+    if (state.keylock) {
+      return {
+        left: "Unlock",
+        center: "",
+        right: "",
       };
-      const activeRows = itemsByTab[state.browserTab] || [];
-      const selectedIndex = state.browserSelectedByTab[state.browserTab];
-      const selectedRow = activeRows[safeIndex(selectedIndex, activeRows.length)] || null;
-
-      return renderBrowserApp({
-        pageTitle: selectedRow?.label || "Start page",
-        address: selectedRow?.subtitle || "https://",
-        tabs: BROWSER_TABS,
-        activeTabId: state.browserTab,
-        itemsByTab,
-        selectedIndex,
-        loading: state.browserLoading,
-        softkeys: {
-          left: "Options",
-          center: "Open",
-          right: "Back",
-        },
-        statusMessage: state.statusMessage,
-      });
     }
 
-    if (state.currentApp === "files") {
-      const currentNode = getCurrentFileNode();
-      const entries = getCurrentFileEntries();
-
-      const storageSummary = (fileTree?.children || []).map((drive) => ({
-        id: drive.id,
-        label: drive.name,
-        subtitle: `${countFilesRecursive(drive)} file(s)`,
-        trailing: drive.id === currentNode.id ? "Open" : "Drive",
-      }));
-
-      return renderFileManagerApp({
-        currentPath: getCurrentFilePathLabel(),
-        entries,
-        selectedIndex: state.filesSelectedIndex,
-        storageSummary,
-        softkeys: {
-          left: "Options",
-          center: "Open",
-          right: "Back",
-        },
-        statusMessage: state.statusMessage,
-      });
+    if (state.taskSwitcher.open) {
+      return {
+        left: "Close app",
+        center: "Switch",
+        right: "Cancel",
+      };
     }
 
-    if (state.currentApp === "notes") {
-      return renderNotesApp({
-        notes: notesEntries.map((note) => ({
-          id: note.id,
-          label: note.title,
-          subtitle: note.body,
-          trailing: note.updatedAt,
-          iconToken: "NT",
-        })),
-        selectedIndex: state.notesSelectedIndex,
-        softkeys: {
-          left: "New",
-          center: "View",
-          right: "Back",
-        },
-        statusMessage: state.statusMessage,
-      });
+    if (state.screen === "boot") {
+      return {
+        left: "",
+        center: "Skip",
+        right: "",
+      };
     }
 
-    if (state.currentApp === "settings") {
-      const categories = settingsCategories.map((category) => ({
-        id: category.id,
-        label: category.title,
-        subtitle: `${(category.items || []).length} entries`,
-        iconToken: "SC",
-      }));
-
-      const selectedCategory = settingsCategories[state.settingsCategoryIndex];
-      const detailItems = (selectedCategory?.items || []).map((item) => ({
-        id: item.id,
-        label: item.label,
-        subtitle: item.type,
-        trailing: item.value === true ? "On" : item.value === false ? "Off" : String(item.value),
-        iconToken: "ST",
-      }));
-
-      return renderSettingsApp({
-        categories,
-        selectedCategoryIndex: state.settingsCategoryIndex,
-        detailItems,
-        selectedDetailIndex: state.settingsDetailIndex,
-        softkeys: {
-          left: "Change",
-          center: "Toggle",
-          right: "Back",
-        },
-        statusMessage: `${selectedCategory?.title || "Settings"} (${state.settingsFocus})`,
-      });
-    }
-
-    if (state.currentApp === "extras") {
-      return renderExtrasApp({
-        tools: EXTRAS_TOOLS.map((tool) => ({
-          id: tool.id,
-          label: tool.label,
-          subtitle: tool.subtitle,
-          trailing: tool.trailing,
-          iconToken: "EX",
-        })),
-        selectedIndex: state.extrasIndex,
-        tip: EXTRAS_TOOLS[safeIndex(state.extrasIndex, EXTRAS_TOOLS.length)]?.tip || "",
-        softkeys: {
-          left: "Options",
-          center: "Open",
-          right: "Back",
-        },
-        statusMessage: state.statusMessage,
-      });
-    }
-
-    if (state.currentApp === "profiles") {
-      return renderProfilesApp();
-    }
-
-    if (state.currentApp === "log") {
-      return renderCallLogApp();
-    }
-
-    return renderStandbyScreen({
-      timeLabel: formatClockTime(state.now),
-      dateLabel: formatClockDate(state.now),
-      profileLabel: `Profile: ${activeProfile.label}`,
-      operatorLabel: getOperatorLabel(),
-      signalLabel: `Signal ${signalLevel}/5`,
-      batteryLabel: `Battery ${batteryLevel}%`,
-      notifications: [],
-      softkeys: {
+    if (state.screen === "standby") {
+      return {
         left: "Menu",
+        center: "Open",
+        right: "Lock",
+      };
+    }
+
+    if (state.screen === "menu") {
+      return {
+        left: "Options",
+        center: "Open",
+        right: "Exit",
+      };
+    }
+
+    if (state.screen === "app") {
+      if (state.currentAppId === "messaging" && state.apps.messaging.mode === "compose") {
+        return {
+          left: `Mode ${state.apps.messaging.inputMode.toUpperCase()}`,
+          center: "Send",
+          right: "Back",
+        };
+      }
+
+      if (state.currentAppId === "music") {
+        return {
+          left: "Prev",
+          center: state.apps.music.playing ? "Pause" : "Play",
+          right: "Back",
+        };
+      }
+
+      if (state.currentAppId === "contacts" && state.apps.contacts.query) {
+        return {
+          left: "Clear",
+          center: "Open",
+          right: "Back",
+        };
+      }
+
+      return {
+        left: "Options",
         center: "Select",
-        right: "Names",
-      },
-      statusMessage: "Unknown view; returning to standby.",
-    });
+        right: "Back",
+      };
+    }
+
+    return {
+      left: "",
+      center: "",
+      right: "",
+    };
   }
 
-  function renderDialogOverlay() {
-    if (!state.dialog) {
-      return "";
+  function handleDirection(direction) {
+    if (state.keylock) {
+      setToast("Keypad is locked", "warning", 900);
+      return;
     }
 
-    const lines = Array.isArray(state.dialog.lines) ? state.dialog.lines : [];
+    if (state.taskSwitcher.open) {
+      const taskApps = getTaskSwitcherApps();
+      if (taskApps.length === 0) {
+        state.taskSwitcher.open = false;
+        return;
+      }
 
+      if (direction === "up") {
+        state.taskSwitcher.cursor = clamp(state.taskSwitcher.cursor - 1, 0, taskApps.length - 1);
+      } else if (direction === "down") {
+        state.taskSwitcher.cursor = clamp(state.taskSwitcher.cursor + 1, 0, taskApps.length - 1);
+      }
+      return;
+    }
+
+    if (state.screen === "boot") {
+      return;
+    }
+
+    if (state.screen === "standby") {
+      if (direction === "left") {
+        state.standbyShortcutIndex = clamp(state.standbyShortcutIndex - 1, 0, SHORTCUT_APP_IDS.length - 1);
+      } else if (direction === "right") {
+        state.standbyShortcutIndex = clamp(state.standbyShortcutIndex + 1, 0, SHORTCUT_APP_IDS.length - 1);
+      } else if (direction === "up") {
+        openMenu();
+      } else if (direction === "down") {
+        setToast("No older notifications", "info", 900);
+      }
+      return;
+    }
+
+    if (state.screen === "menu") {
+      moveMenu(direction);
+      return;
+    }
+
+    if (state.screen === "app") {
+      handleAppDirection(direction);
+    }
+  }
+
+  function handleSoftkey(side) {
+    if (side === "left" && state.keylock) {
+      state.keylock = false;
+      setToast("Keypad unlocked", "success", 850);
+      return;
+    }
+
+    if (state.keylock) {
+      setToast("Keypad is locked", "warning", 900);
+      return;
+    }
+
+    if (state.taskSwitcher.open) {
+      if (side === "left") {
+        closeTaskSwitcherSelection();
+      } else if (side === "center") {
+        activateTaskSwitcherSelection();
+      } else if (side === "right") {
+        state.taskSwitcher.open = false;
+      }
+      return;
+    }
+
+    if (state.screen === "boot") {
+      if (side === "center" || side === "left") {
+        completeBoot();
+      }
+      return;
+    }
+
+    if (state.screen === "standby") {
+      if (side === "left") {
+        openMenu();
+      } else if (side === "center") {
+        const appId = SHORTCUT_APP_IDS[state.standbyShortcutIndex] || SHORTCUT_APP_IDS[0];
+        launchApp(appId, { fromScreen: "standby" });
+      } else if (side === "right") {
+        state.keylock = true;
+        setToast("Keypad locked", "info", 900);
+      }
+      return;
+    }
+
+    if (state.screen === "menu") {
+      if (side === "left") {
+        const app = MENU_APPS[state.menuIndex];
+        if (app) {
+          setPopup(`Options: Open ${app.label} | Move | Organize`, "info", 1700);
+        }
+      } else if (side === "center") {
+        launchMenuIndex(state.menuIndex);
+      } else if (side === "right") {
+        goStandby();
+      }
+      return;
+    }
+
+    if (state.screen === "app") {
+      if (side === "left") {
+        handleAppSoftkeyLeft();
+      } else if (side === "center") {
+        activateCurrentAppSelection();
+      } else if (side === "right") {
+        backFromApp();
+      }
+    }
+  }
+
+  function handleUtilityMenu() {
+    if (state.keylock) {
+      state.keylock = false;
+      setToast("Keypad unlocked", "success", 850);
+      return;
+    }
+
+    if (state.screen === "menu") {
+      goStandby();
+      return;
+    }
+
+    openMenu();
+  }
+
+  function handleUtilityCall() {
+    if (state.keylock) {
+      setToast("Unlock keypad first", "warning", 900);
+      return;
+    }
+
+    setToast("No active voice call", "info", 1000);
+  }
+
+  function handleUtilityEnd() {
+    if (state.keylock) {
+      return;
+    }
+
+    goStandby();
+  }
+
+  function handleKeyDown(event) {
+    if (!mounted) {
+      return;
+    }
+
+    const key = event.key;
+    const loweredKey = typeof key === "string" ? key.toLowerCase() : "";
+
+    let handled = false;
+
+    if (key === "ArrowUp") {
+      handleDirection("up");
+      handled = true;
+    } else if (key === "ArrowDown") {
+      handleDirection("down");
+      handled = true;
+    } else if (key === "ArrowLeft") {
+      handleDirection("left");
+      handled = true;
+    } else if (key === "ArrowRight") {
+      handleDirection("right");
+      handled = true;
+    } else if (key === "Enter" || key === " " || key === "F2" || key === "SoftMiddle") {
+      handleSoftkey("center");
+      handled = true;
+    } else if (
+      key === "Escape" ||
+      key === "F3" ||
+      key === "SoftRight" ||
+      key === "]"
+    ) {
+      handleSoftkey("right");
+      handled = true;
+    } else if (key === "F1" || key === "SoftLeft" || key === "[") {
+      handleSoftkey("left");
+      handled = true;
+    } else if (key === "ContextMenu" || loweredKey === "m") {
+      handleUtilityMenu();
+      handled = true;
+    } else if (loweredKey === "c") {
+      handleUtilityCall();
+      handled = true;
+    } else if (loweredKey === "e") {
+      handleUtilityEnd();
+      handled = true;
+    } else if (key === "Tab") {
+      toggleTaskSwitcher();
+      handled = true;
+    } else if (state.screen === "menu" && /^[1-9]$/.test(key)) {
+      const pageStart = Math.floor(state.menuIndex / 9) * 9;
+      const target = pageStart + Number(key) - 1;
+      if (target < MENU_APPS.length) {
+        launchMenuIndex(target);
+      }
+      handled = true;
+    } else if (key === "Backspace") {
+      if (state.screen === "app") {
+        handled = handleAppBackspace();
+      } else {
+        handled = true;
+      }
+    } else if (
+      state.screen === "app" &&
+      isPrintableCharacter(key) &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.altKey
+    ) {
+      handled = handleAppPrintableInput(key);
+    }
+
+    if (handled) {
+      event.preventDefault();
+      event.stopPropagation();
+      normalizeAppCursors();
+      render();
+    }
+  }
+
+  function handleClick(event) {
+    const target = event.target instanceof HTMLElement
+      ? event.target.closest("[data-action]")
+      : null;
+
+    if (!target) {
+      return;
+    }
+
+    const action = target.dataset.action;
+
+    if (action === "softkey") {
+      handleSoftkey(target.dataset.side || "center");
+    } else if (action === "nav") {
+      handleDirection(target.dataset.direction || "up");
+    } else if (action === "utility-menu") {
+      handleUtilityMenu();
+    } else if (action === "utility-call") {
+      handleUtilityCall();
+    } else if (action === "utility-end") {
+      handleUtilityEnd();
+    } else if (action === "menu-index") {
+      const index = Number(target.dataset.index);
+      if (Number.isFinite(index)) {
+        state.menuIndex = clamp(index, 0, MENU_APPS.length - 1);
+        launchMenuIndex(state.menuIndex);
+      }
+    } else if (action === "standby-shortcut") {
+      const index = Number(target.dataset.index);
+      if (Number.isFinite(index)) {
+        state.standbyShortcutIndex = clamp(index, 0, SHORTCUT_APP_IDS.length - 1);
+        const appId = SHORTCUT_APP_IDS[state.standbyShortcutIndex];
+        launchApp(appId, { fromScreen: "standby" });
+      }
+    } else if (action === "toggle-task-switcher") {
+      toggleTaskSwitcher();
+    } else if (action === "task-select") {
+      const index = Number(target.dataset.index);
+      if (Number.isFinite(index)) {
+        state.taskSwitcher.cursor = clamp(index, 0, Math.max(0, getTaskSwitcherApps().length - 1));
+        activateTaskSwitcherSelection();
+      }
+    }
+
+    normalizeAppCursors();
+    render();
+  }
+
+  function renderSignalBars() {
+    const bars = [];
+
+    for (let index = 0; index < 4; index += 1) {
+      const isActive = index < state.signalBars;
+      bars.push(`<span class="symbian-signal__bar${isActive ? " is-active" : ""}"></span>`);
+    }
+
+    return bars.join("");
+  }
+
+  function renderStatusBar() {
     return `
-      <div class="symbian-dialog-layer" data-dialog-layer="true">
-        <article class="symbian-dialog" role="dialog" aria-modal="true" aria-label="${safeText(
-          state.dialog.title || "Details",
-        )}">
-          <h3 class="symbian-dialog__title">${safeText(state.dialog.title || "Details")}</h3>
-          <div class="symbian-dialog__content">
-            ${lines.map((line) => `<p>${safeText(line)}</p>`).join("")}
-          </div>
-          <div class="symbian-dialog__actions">
-            <button type="button" class="symbian-button" data-dialog-action="close">Close</button>
-          </div>
-        </article>
+      <div class="symbian-statusbar" role="status" aria-live="polite">
+        <div class="symbian-statusbar__left">
+          <span class="symbian-signal" aria-label="Signal strength">${renderSignalBars()}</span>
+          <span class="symbian-statusbar__operator">3G</span>
+        </div>
+        <div class="symbian-statusbar__center">
+          <span class="symbian-statusbar__date">${escapeHtml(state.carrierName)}</span>
+        </div>
+        <div class="symbian-statusbar__right">
+          <span class="symbian-statusbar__clock">${escapeHtml(formatClock(state.now))}</span>
+          <span class="symbian-statusbar__divider"></span>
+          <span class="symbian-battery" aria-label="Battery ${state.batteryLevel}%">
+            <span class="symbian-battery__cell">
+              <span class="symbian-battery__fill" style="width:${clamp(state.batteryLevel, 1, 100)}%"></span>
+            </span>
+            <span class="symbian-battery__cap"></span>
+            <span class="symbian-battery__text">${state.batteryLevel}%</span>
+          </span>
+        </div>
       </div>
     `;
   }
 
-  function renderStatusBar() {
-    const signalLevel = getSignalLevel();
-    const batteryLevel = getBatteryLevel();
-    const activeSignalBars = clamp(Math.round((signalLevel / 5) * 4), 0, 4);
+  function renderSoftkeys() {
+    const softkeys = getSoftkeys();
 
     return `
-      <header class="symbian-statusbar" aria-label="Status bar">
-        <div class="symbian-statusbar__left">
-          <span class="symbian-statusbar__date">${safeText(formatClockDate(state.now))}</span>
-        </div>
-        <div class="symbian-statusbar__center">${safeText(getOperatorLabel())}</div>
-        <div class="symbian-statusbar__right">
-          <span class="symbian-signal" aria-label="Signal ${signalLevel} of 5">
-            ${[0, 1, 2, 3]
+      <div class="symbian-softkeys" role="toolbar" aria-label="Softkeys">
+        <button type="button" class="symbian-softkeys__key symbian-softkeys__key--left" data-action="softkey" data-side="left">${escapeHtml(softkeys.left || " ")}</button>
+        <button type="button" class="symbian-softkeys__key symbian-softkeys__key--center" data-action="softkey" data-side="center">${escapeHtml(softkeys.center || " ")}</button>
+        <button type="button" class="symbian-softkeys__key symbian-softkeys__key--right" data-action="softkey" data-side="right">${escapeHtml(softkeys.right || " ")}</button>
+      </div>
+    `;
+  }
+
+  function renderMenuScreen() {
+    const pageSize = 9;
+    const pageIndex = Math.floor(state.menuIndex / pageSize);
+    const pageCount = Math.ceil(MENU_APPS.length / pageSize);
+    const pageStart = pageIndex * pageSize;
+
+    const cells = [];
+
+    for (let localIndex = 0; localIndex < pageSize; localIndex += 1) {
+      const globalIndex = pageStart + localIndex;
+      const app = MENU_APPS[globalIndex];
+
+      if (!app) {
+        cells.push('<li class="symbian-menu-grid__item is-disabled" aria-hidden="true"></li>');
+        continue;
+      }
+
+      const selected = globalIndex === state.menuIndex ? " is-selected" : "";
+      cells.push(`
+        <li class="symbian-menu-grid__item${selected}" data-action="menu-index" data-index="${globalIndex}">
+          <span class="symbian-menu-grid__icon" aria-hidden="true"></span>
+          <span class="symbian-menu-grid__label">${escapeHtml(app.label)}</span>
+        </li>
+      `);
+    }
+
+    return `
+      <main class="symbian-screen symbian-screen--menu">
+        <header class="symbian-menu__header">
+          <h2 class="symbian-menu__title">Menu</h2>
+          <p class="symbian-menu__page">${pageIndex + 1}/${pageCount}</p>
+        </header>
+        <p class="symbian-status-message">Use D-pad or number keys 1-9 to open an app.</p>
+        <ul class="symbian-menu-grid">${cells.join("")}</ul>
+        <p class="symbian-status-message">Tab opens task switcher.</p>
+      </main>
+    `;
+  }
+
+  function renderStandbyScreen() {
+    const shortcuts = SHORTCUT_APP_IDS.map((appId) => getAppMeta(appId)).filter(Boolean);
+
+    return `
+      <main class="symbian-screen symbian-screen--standby${state.keylock ? " is-dimmed" : ""}">
+        <header class="symbian-home__header">
+          <h2 class="symbian-home__title">Active standby</h2>
+          <p class="symbian-home__profile">${escapeHtml(state.profileName)}</p>
+        </header>
+        <section class="symbian-standby__status">
+          <p class="symbian-standby__operator">${escapeHtml(state.carrierName)}</p>
+          <p class="symbian-standby__meters">Signal ${state.signalBars}/4</p>
+        </section>
+        <section class="symbian-standby__clock-block">
+          <p class="symbian-standby__time">${escapeHtml(formatClock(state.now))}</p>
+          <p class="symbian-standby__date">${escapeHtml(formatDateLong(state.now))}</p>
+          <p class="symbian-standby__profile">${state.keylock ? "Keypad locked" : "Press Menu or center key"}</p>
+        </section>
+        <section class="symbian-home__shortcuts">
+          <ul class="symbian-shortcuts">
+            ${shortcuts
+              .map((app, index) => {
+                const isSelected = state.standbyShortcutIndex === index ? " is-selected" : "";
+                return `
+                  <li class="symbian-shortcuts__item${isSelected}" data-action="standby-shortcut" data-index="${index}">
+                    <span class="symbian-icon-chip">${escapeHtml(app.token)}</span>
+                    <span class="symbian-shortcuts__label">${escapeHtml(app.label)}</span>
+                  </li>
+                `;
+              })
+              .join("")}
+          </ul>
+        </section>
+        <section class="symbian-standby__events">
+          <p class="symbian-standby__events-title">Today</p>
+          <ul class="symbian-standby__notifications">
+            ${state.standbyNotifications
               .map(
-                (index) =>
-                  `<span class="symbian-signal__bar ${index < activeSignalBars ? "is-active" : ""}"></span>`,
+                (item) => `
+              <li class="symbian-standby__notification">
+                <span class="symbian-icon-chip">${escapeHtml(item.token)}</span>
+                <span class="symbian-standby__notification-main">
+                  <span class="symbian-standby__notification-label">${escapeHtml(item.label)}</span>
+                  <span class="symbian-standby__notification-subtitle">${escapeHtml(item.subtitle)}</span>
+                </span>
+                <span class="symbian-standby__notification-trailing">${escapeHtml(item.trailing)}</span>
+              </li>
+            `,
               )
               .join("")}
-          </span>
-          <span class="symbian-battery" aria-label="Battery ${batteryLevel}%">
-            <span class="symbian-battery__cell" style="--symbian-battery-level: ${batteryLevel}%">
-              <span class="symbian-battery__fill"></span>
-            </span>
-            <span class="symbian-battery__cap"></span>
-            <span class="symbian-battery__text">${safeText(String(batteryLevel))}%</span>
-          </span>
-          <span class="symbian-statusbar__divider"></span>
-          <span class="symbian-statusbar__clock">${safeText(formatClockTime(state.now))}</span>
-        </div>
-      </header>
-    `;
-  }
-
-  function renderBottomHardware() {
-    return `
-      <footer class="symbian-phone__bottom" aria-hidden="true">
-        <div class="symbian-navpad">
-          <button type="button" class="symbian-navpad__hint symbian-navpad__hint--up" data-nav-key="ArrowUp">Up</button>
-          <button type="button" class="symbian-navpad__hint symbian-navpad__hint--down" data-nav-key="ArrowDown">Down</button>
-          <button type="button" class="symbian-navpad__hint symbian-navpad__hint--left" data-nav-key="ArrowLeft">Left</button>
-          <button type="button" class="symbian-navpad__hint symbian-navpad__hint--right" data-nav-key="ArrowRight">Right</button>
-          <button type="button" class="symbian-navpad__ok" data-softkey="center">OK</button>
-        </div>
-        <div class="symbian-utility-row">
-          <button type="button" class="symbian-utility-key" data-softkey="left">Left key</button>
-          <button type="button" class="symbian-utility-key is-end" data-softkey="right">Right key</button>
-        </div>
-      </footer>
-    `;
-  }
-
-  function render() {
-    clampSelections();
-
-    const idleWallpaperClass = state.view === "standby" || state.view === "home" ? " symbian-wallpaper--idle" : "";
-
-    root.innerHTML = `
-      <main class="symbian-shell" role="application" aria-label="Symbian OS simulation">
-        <section class="symbian-phone">
-          <header class="symbian-phone__top">
-            <span class="symbian-phone__earpiece"></span>
-            <span class="symbian-phone__brand">Nokia</span>
-          </header>
-          <section class="symbian-display">
-            <div class="symbian-wallpaper${idleWallpaperClass}"></div>
-            ${renderStatusBar()}
-            <section class="symbian-workspace">
-              <div class="symbian-workspace__viewport">
-                ${renderCurrentView()}
-              </div>
-              ${
-                state.toast
-                  ? `<p class="symbian-toast is-${safeText(state.toast.tone || "info")}">${safeText(
-                      state.toast.message,
-                    )}</p>`
-                  : ""
-              }
-              ${renderDialogOverlay()}
-            </section>
-          </section>
-          ${renderBottomHardware()}
+          </ul>
         </section>
       </main>
     `;
   }
 
-  function handleItemSelectionClick(itemElement) {
-    if (!itemElement) {
+  function renderBootScreen() {
+    return `
+      <main class="symbian-screen symbian-screen--boot">
+        <section class="symbian-app-body symbian-boot">
+          <p class="symbian-boot__logo">${escapeHtml(state.brand.toUpperCase())}</p>
+          <p class="symbian-boot__subtitle">${escapeHtml(state.platformName)}</p>
+          <div class="symbian-meter" style="--symbian-meter-value:${state.boot.progress}%">
+            <div class="symbian-meter__fill"></div>
+          </div>
+          <pre class="symbian-boot__log">${escapeHtml(state.boot.logs.join("\n"))}</pre>
+          <p class="symbian-boot__hint">Press center key to continue</p>
+        </section>
+      </main>
+    `;
+  }
+
+  function renderListRows(items, selectedIndex) {
+    if (items.length === 0) {
+      return '<p class="symbian-empty">No items.</p>';
+    }
+
+    return `
+      <ul class="symbian-list">
+        ${items
+          .map((item, index) => {
+            const selected = index === selectedIndex ? " is-selected" : "";
+            const unread = item.unread ? " is-unread" : "";
+            const subtitle = item.subtitle
+              ? `<span class="symbian-list__subtitle">${escapeHtml(item.subtitle)}</span>`
+              : "";
+            const trailing = item.trailing
+              ? `<span class="symbian-list__trailing">${escapeHtml(item.trailing)}</span>`
+              : "";
+            const badge =
+              typeof item.badge === "number"
+                ? `<span class="symbian-list__badge">${item.badge}</span>`
+                : "";
+            return `
+              <li class="symbian-list__item${selected}${unread}">
+                <span class="symbian-list__main">
+                  ${badge}
+                  <span class="symbian-icon-chip">${escapeHtml(item.token || "--")}</span>
+                  <span class="symbian-list__label-wrap">
+                    <span class="symbian-list__label">${escapeHtml(item.label)}</span>
+                    ${subtitle}
+                  </span>
+                </span>
+                ${trailing}
+              </li>
+            `;
+          })
+          .join("")}
+      </ul>
+    `;
+  }
+
+  function renderContactsApp() {
+    const contacts = getFilteredContacts();
+    const listRows = contacts.map((contact) => ({
+      token: "CT",
+      label: contact.name,
+      subtitle: `${contact.type} · ${contact.number}`,
+      trailing: "",
+    }));
+
+    return `
+      <header class="symbian-app-header">
+        <h2 class="symbian-app-header__title">Contacts</h2>
+        <p class="symbian-app-header__subtitle">${contacts.length} entries</p>
+      </header>
+      <section class="symbian-app-body">
+        <div class="symbian-toolbar">
+          <span class="symbian-toolbar__label">Search</span>
+          <span class="symbian-toolbar__value">${escapeHtml(state.apps.contacts.query || "All contacts")}</span>
+        </div>
+        ${renderListRows(listRows, state.apps.contacts.cursor)}
+      </section>
+    `;
+  }
+
+  function renderMessagingApp() {
+    const messaging = state.apps.messaging;
+
+    if (messaging.mode === "compose") {
+      return `
+        <header class="symbian-app-header">
+          <h2 class="symbian-app-header__title">New message</h2>
+          <p class="symbian-app-header__subtitle">Compose SMS</p>
+        </header>
+        <section class="symbian-app-body">
+          <div class="symbian-form">
+            <div class="symbian-form__row">
+              <span class="symbian-form__label">To</span>
+              <div class="symbian-form__field">${escapeHtml(
+                messaging.recipient || (messaging.focus === "recipient" ? "_" : ""),
+              )}</div>
+            </div>
+            <div class="symbian-form__row">
+              <span class="symbian-form__label">Message</span>
+              <div class="symbian-form__field">${escapeHtml(
+                messaging.body || (messaging.focus === "body" ? "_" : ""),
+              )}</div>
+            </div>
+          </div>
+          <p class="symbian-status-message">Focus: ${messaging.focus} | Input: ${messaging.inputMode.toUpperCase()}</p>
+        </section>
+      `;
+    }
+
+    const rows = messaging.messages.map((message) => ({
+      token: "MS",
+      label: message.from,
+      subtitle: message.body,
+      trailing: message.time,
+      unread: message.unread,
+    }));
+
+    return `
+      <header class="symbian-app-header">
+        <h2 class="symbian-app-header__title">Messaging</h2>
+        <p class="symbian-app-header__subtitle">Inbox</p>
+      </header>
+      <section class="symbian-app-body">
+        ${renderListRows(rows, messaging.cursor)}
+      </section>
+    `;
+  }
+
+  function renderCalendarApp() {
+    const selectedDate = state.apps.calendar.selectedDate;
+    const eventsByDate = getEventsByDate();
+    const rows = buildCalendarRows(selectedDate, eventsByDate);
+    const selectedEvents = getCurrentCalendarEvents();
+
+    return `
+      <header class="symbian-app-header">
+        <h2 class="symbian-app-header__title">Calendar</h2>
+        <p class="symbian-app-header__subtitle">${escapeHtml(
+          selectedDate.toLocaleString("en-US", { month: "long", year: "numeric" }),
+        )}</p>
+      </header>
+      <section class="symbian-app-body symbian-calendar-grid-pane">
+        <table class="symbian-calendar-grid" aria-label="Month grid">
+          <thead>
+            <tr>
+              <th>Mo</th><th>Tu</th><th>We</th><th>Th</th><th>Fr</th><th>Sa</th><th>Su</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows
+              .map(
+                (row) => `
+              <tr>
+                ${row
+                  .map((cell) => {
+                    const classNames = ["symbian-calendar-grid__cell"];
+                    if (cell.isOutside) {
+                      classNames.push("is-outside");
+                    }
+                    if (cell.isSelected) {
+                      classNames.push("is-selected");
+                    }
+                    if (cell.hasEvent) {
+                      classNames.push("has-event");
+                    }
+
+                    return `<td class="${classNames.join(" ")}"><span class="symbian-calendar-grid__day">${cell.day}</span></td>`;
+                  })
+                  .join("")}
+              </tr>
+            `,
+              )
+              .join("")}
+          </tbody>
+        </table>
+        <p class="symbian-status-message">${selectedEvents.length > 0 ? escapeHtml(selectedEvents.map((item) => `${item.time} ${item.title}`).join(" | ")) : "No events"}</p>
+      </section>
+    `;
+  }
+
+  function renderMusicApp() {
+    const track = getCurrentTrack();
+    const progressPercent = clamp(Math.round((state.apps.music.progressSec / track.durationSec) * 100), 0, 100);
+
+    return `
+      <header class="symbian-app-header">
+        <h2 class="symbian-app-header__title">Music player</h2>
+        <p class="symbian-app-header__subtitle">All songs</p>
+      </header>
+      <section class="symbian-app-body">
+        <section class="symbian-now-playing symbian-pane">
+          <p class="symbian-now-playing__title">${escapeHtml(track.title)}</p>
+          <p class="symbian-now-playing__artist">${escapeHtml(track.artist)}</p>
+          <p class="symbian-now-playing__progress">${formatDuration(state.apps.music.progressSec)} / ${formatDuration(track.durationSec)}</p>
+          <div class="symbian-meter" style="--symbian-meter-value:${progressPercent}%"><div class="symbian-meter__fill"></div></div>
+          <p class="symbian-now-playing__state">${state.apps.music.playing ? "Playing" : "Paused"} · Volume ${state.apps.music.volume}/10</p>
+        </section>
+      </section>
+    `;
+  }
+
+  function renderBrowserApp() {
+    const rows = BOOKMARKS.map((bookmark) => ({
+      token: "WB",
+      label: bookmark.title,
+      subtitle: bookmark.url,
+      trailing: "",
+    }));
+
+    return `
+      <header class="symbian-app-header">
+        <h2 class="symbian-app-header__title">Web</h2>
+        <p class="symbian-app-header__subtitle">S60 browser</p>
+      </header>
+      <section class="symbian-app-body">
+        <section class="symbian-browser-address symbian-pane">
+          <p class="symbian-browser-address__title">${escapeHtml(state.apps.browser.currentTitle)}</p>
+          <p class="symbian-browser-address__url">${escapeHtml(state.apps.browser.currentUrl)}</p>
+          <p class="symbian-browser-address__state">State: ${escapeHtml(state.apps.browser.state)}</p>
+        </section>
+        ${renderListRows(rows, state.apps.browser.cursor)}
+      </section>
+    `;
+  }
+
+  function renderGalleryApp() {
+    const cells = GALLERY_ITEMS.map((item, index) => {
+      const selected = index === state.apps.gallery.cursor ? " is-selected" : "";
+      return `
+        <li class="symbian-thumb-grid__item${selected}">
+          <span class="symbian-thumb-grid__preview">${escapeHtml(item.token)}</span>
+          <span class="symbian-thumb-grid__label">${escapeHtml(item.label)}</span>
+        </li>
+      `;
+    }).join("");
+
+    return `
+      <header class="symbian-app-header">
+        <h2 class="symbian-app-header__title">Gallery</h2>
+        <p class="symbian-app-header__subtitle">Camera roll</p>
+      </header>
+      <section class="symbian-app-body">
+        <ul class="symbian-thumb-grid">${cells}</ul>
+      </section>
+    `;
+  }
+
+  function renderNotesApp() {
+    const selectedNote = state.apps.notes.notes[state.apps.notes.cursor] || null;
+    const rows = state.apps.notes.notes.map((note) => ({
+      token: "NT",
+      label: note.title,
+      subtitle: note.text,
+      trailing: "",
+    }));
+
+    return `
+      <header class="symbian-app-header">
+        <h2 class="symbian-app-header__title">Notes</h2>
+        <p class="symbian-app-header__subtitle">${state.apps.notes.notes.length} items</p>
+      </header>
+      <section class="symbian-app-body symbian-notes-layout">
+        <section>
+          ${renderListRows(rows, state.apps.notes.cursor)}
+        </section>
+        <section class="symbian-notes__preview-pane symbian-pane">
+          <h3 class="symbian-pane__title">${escapeHtml(selectedNote?.title || "No note")}</h3>
+          <p class="symbian-notes__preview-text">${escapeHtml(selectedNote?.text || "Select a note.")}</p>
+        </section>
+      </section>
+    `;
+  }
+
+  function renderSettingsApp() {
+    const settings = state.apps.settings;
+    const rows = [
+      { label: "Profile", value: PROFILES[settings.profileIndex], token: "PF" },
+      { label: "Theme", value: THEMES[settings.themeIndex], token: "TH" },
+      { label: "Network mode", value: NETWORK_MODES[settings.networkIndex], token: "NW" },
+      { label: "Keypad tones", value: KEYPAD_TONES[settings.keypadToneIndex], token: "KT" },
+    ];
+
+    const listMarkup = renderListRows(
+      rows.map((row) => ({
+        token: row.token,
+        label: row.label,
+        subtitle: row.value,
+      })),
+      settings.cursor,
+    );
+
+    return `
+      <header class="symbian-app-header">
+        <h2 class="symbian-app-header__title">Settings</h2>
+        <p class="symbian-app-header__subtitle">Phone setup</p>
+      </header>
+      <section class="symbian-app-body symbian-settings-layout">
+        <section>${listMarkup}</section>
+        <section class="symbian-pane">
+          <h3 class="symbian-pane__title">Current profile</h3>
+          <p class="symbian-pane__text">${escapeHtml(PROFILES[settings.profileIndex])}</p>
+          <p class="symbian-pane__text">Theme: ${escapeHtml(THEMES[settings.themeIndex])}</p>
+          <p class="symbian-pane__text">Network: ${escapeHtml(NETWORK_MODES[settings.networkIndex])}</p>
+          <p class="symbian-pane__text">Tones: ${escapeHtml(KEYPAD_TONES[settings.keypadToneIndex])}</p>
+        </section>
+      </section>
+    `;
+  }
+
+  function renderFilesApp() {
+    const rows = FILE_VOLUMES.map((volume) => ({
+      token: "FM",
+      label: volume.name,
+      subtitle: volume.value,
+      trailing: "",
+    }));
+
+    return `
+      <header class="symbian-app-header">
+        <h2 class="symbian-app-header__title">File manager</h2>
+        <p class="symbian-app-header__subtitle">Storage devices</p>
+      </header>
+      <section class="symbian-app-body">
+        ${renderListRows(rows, state.apps.files.cursor)}
+        <section class="symbian-storage-summary symbian-pane">
+          <ul class="symbian-storage-summary__list">
+            ${FILE_VOLUMES.map(
+              (volume) => `
+              <li class="symbian-storage-summary__item">
+                <span class="symbian-storage-summary__name">${escapeHtml(volume.name)}</span>
+                <span class="symbian-storage-summary__value">${escapeHtml(volume.value)}</span>
+              </li>
+            `,
+            ).join("")}
+          </ul>
+        </section>
+      </section>
+    `;
+  }
+
+  function renderConnectivityApp() {
+    const rows = CONNECTIVITY_ROWS.map((row) => {
+      const enabled = Boolean(state.apps.connectivity.toggles[row.key]);
+      return {
+        token: "CN",
+        label: row.label,
+        subtitle: enabled ? row.detailOn : row.detailOff,
+      };
+    });
+
+    return `
+      <header class="symbian-app-header">
+        <h2 class="symbian-app-header__title">Connectivity</h2>
+        <p class="symbian-app-header__subtitle">Network services</p>
+      </header>
+      <section class="symbian-app-body">
+        ${renderListRows(rows, state.apps.connectivity.cursor)}
+      </section>
+    `;
+  }
+
+  function renderToolsApp() {
+    const rows = TOOLS.map((tool) => ({
+      token: "TL",
+      label: tool.label,
+      subtitle: tool.subtitle,
+    }));
+
+    return `
+      <header class="symbian-app-header">
+        <h2 class="symbian-app-header__title">Tools</h2>
+        <p class="symbian-app-header__subtitle">Utilities</p>
+      </header>
+      <section class="symbian-app-body">
+        ${renderListRows(rows, state.apps.tools.cursor)}
+        <p class="symbian-status-message">Run Task switcher to jump between running apps.</p>
+      </section>
+    `;
+  }
+
+  function renderClockApp() {
+    return `
+      <header class="symbian-app-header">
+        <h2 class="symbian-app-header__title">Clock</h2>
+        <p class="symbian-app-header__subtitle">Time and alarms</p>
+      </header>
+      <section class="symbian-app-body">
+        <section class="symbian-pane">
+          <h3 class="symbian-pane__title">Current time</h3>
+          <p class="symbian-pane__text">${escapeHtml(formatDateLong(state.now))}</p>
+          <p class="symbian-pane__text">${escapeHtml(formatClock(state.now))}</p>
+        </section>
+        <section class="symbian-pane">
+          <h3 class="symbian-pane__title">Alarm</h3>
+          <p class="symbian-pane__text">${escapeHtml(state.apps.clock.alarmTime)}</p>
+          <p class="symbian-pane__text">Left softkey increments alarm hour.</p>
+        </section>
+      </section>
+    `;
+  }
+
+  function renderCurrentAppScreen() {
+    let appContent = "";
+
+    if (state.currentAppId === "contacts") {
+      appContent = renderContactsApp();
+    } else if (state.currentAppId === "messaging") {
+      appContent = renderMessagingApp();
+    } else if (state.currentAppId === "calendar") {
+      appContent = renderCalendarApp();
+    } else if (state.currentAppId === "music") {
+      appContent = renderMusicApp();
+    } else if (state.currentAppId === "browser") {
+      appContent = renderBrowserApp();
+    } else if (state.currentAppId === "gallery") {
+      appContent = renderGalleryApp();
+    } else if (state.currentAppId === "notes") {
+      appContent = renderNotesApp();
+    } else if (state.currentAppId === "settings") {
+      appContent = renderSettingsApp();
+    } else if (state.currentAppId === "files") {
+      appContent = renderFilesApp();
+    } else if (state.currentAppId === "connectivity") {
+      appContent = renderConnectivityApp();
+    } else if (state.currentAppId === "tools") {
+      appContent = renderToolsApp();
+    } else if (state.currentAppId === "clock") {
+      appContent = renderClockApp();
+    } else {
+      appContent = `
+        <header class="symbian-app-header">
+          <h2 class="symbian-app-header__title">App</h2>
+          <p class="symbian-app-header__subtitle">Unknown application</p>
+        </header>
+        <section class="symbian-app-body">
+          <p class="symbian-empty">Application data is unavailable.</p>
+        </section>
+      `;
+    }
+
+    return `<main class="symbian-screen symbian-screen--app">${appContent}</main>`;
+  }
+
+  function renderTaskSwitcherDialog() {
+    const taskApps = getTaskSwitcherApps();
+
+    return `
+      <div class="symbian-dialog-layer" aria-modal="true" role="dialog">
+        <section class="symbian-dialog">
+          <h3 class="symbian-dialog__title">Task switcher</h3>
+          <div class="symbian-dialog__content">
+            ${taskApps.length === 0
+              ? "<p class=\"symbian-empty\">No running apps.</p>"
+              : `<ul class=\"symbian-list\">${taskApps
+                  .map((appId, index) => {
+                    const app = getAppMeta(appId);
+                    if (!app) {
+                      return "";
+                    }
+
+                    const selected = index === state.taskSwitcher.cursor ? " is-selected" : "";
+                    return `
+                        <li class="symbian-list__item${selected}" data-action="task-select" data-index="${index}">
+                          <span class="symbian-list__main">
+                            <span class="symbian-icon-chip">${escapeHtml(app.token)}</span>
+                            <span class="symbian-list__label-wrap">
+                              <span class="symbian-list__label">${escapeHtml(app.label)}</span>
+                              <span class="symbian-list__subtitle">${escapeHtml(app.subtitle)}</span>
+                            </span>
+                          </span>
+                          <span class="symbian-list__trailing">Run</span>
+                        </li>
+                      `;
+                  })
+                  .join("")}</ul>`}
+          </div>
+        </section>
+      </div>
+    `;
+  }
+
+  function renderPopupAndToast() {
+    return `
+      ${state.popup ? `<div class="symbian-popup is-${escapeHtml(state.popup.variant)}">${escapeHtml(state.popup.message)}</div>` : ""}
+      ${state.toast ? `<div class="symbian-toast is-${escapeHtml(state.toast.variant)}">${escapeHtml(state.toast.message)}</div>` : ""}
+    `;
+  }
+
+  function renderMainScreen() {
+    if (state.screen === "boot") {
+      return renderBootScreen();
+    }
+
+    if (state.screen === "standby") {
+      return renderStandbyScreen();
+    }
+
+    if (state.screen === "menu") {
+      return renderMenuScreen();
+    }
+
+    return renderCurrentAppScreen();
+  }
+
+  function render() {
+    if (!mounted) {
       return;
     }
 
-    const list = itemElement.parentElement;
-    const index = Array.from(list?.children || []).indexOf(itemElement);
+    normalizeAppCursors();
 
-    if (index < 0) {
-      return;
-    }
+    root.innerHTML = `
+      <div class="symbian-shell" role="application" aria-label="Symbian mobile shell">
+        <section class="symbian-display">
+          <div class="symbian-wallpaper${state.screen === "standby" ? " symbian-wallpaper--idle" : ""}"></div>
+          ${renderStatusBar()}
+          ${renderMainScreen()}
+          ${renderSoftkeys()}
+          ${renderPopupAndToast()}
+          ${state.taskSwitcher.open ? renderTaskSwitcherDialog() : ""}
+        </section>
+        <nav class="symbian-touch-nav" aria-label="Directional navigation">
+          <button type="button" class="symbian-touch-nav__key symbian-touch-nav__key--up" data-action="nav" data-direction="up">▲</button>
+          <button type="button" class="symbian-touch-nav__key symbian-touch-nav__key--left" data-action="nav" data-direction="left">◀</button>
+          <button type="button" class="symbian-touch-nav__key symbian-touch-nav__key--ok" data-action="softkey" data-side="center">OK</button>
+          <button type="button" class="symbian-touch-nav__key symbian-touch-nav__key--right" data-action="nav" data-direction="right">▶</button>
+          <button type="button" class="symbian-touch-nav__key symbian-touch-nav__key--down" data-action="nav" data-direction="down">▼</button>
+        </nav>
+      </div>
+    `;
+  }
 
-    if (state.view === "app") {
-      if (state.currentApp === "contacts") {
-        state.contactsSelectedByTab[state.contactsTab] = index;
-      } else if (state.currentApp === "messages") {
-        state.messagesSelectedByFolder[state.messagesFolder] = index;
-      } else if (state.currentApp === "calendar") {
-        state.calendarAgendaIndex = index;
-      } else if (state.currentApp === "music") {
-        state.musicSelectedIndex = index;
-      } else if (state.currentApp === "browser") {
-        state.browserSelectedByTab[state.browserTab] = index;
-      } else if (state.currentApp === "files") {
-        state.filesSelectedIndex = index;
-      } else if (state.currentApp === "notes") {
-        state.notesSelectedIndex = index;
-      } else if (state.currentApp === "settings") {
-        if (itemElement.closest(".symbian-settings__categories")) {
-          state.settingsCategoryIndex = index;
-          state.settingsDetailIndex = 0;
-        } else {
-          state.settingsDetailIndex = index;
+  function startHeartbeat() {
+    setManagedInterval(() => {
+      clockTickCount += 1;
+
+      if (state.screen !== "boot") {
+        state.now = new Date();
+
+        if (clockTickCount % 15 === 0) {
+          const variance = Math.random() > 0.7 ? -1 : 0;
+          state.signalBars = clamp(state.signalBars + variance, 2, 4);
         }
-      } else if (state.currentApp === "extras") {
-        state.extrasIndex = index;
-      } else if (state.currentApp === "profiles") {
-        state.profilesIndex = index;
-      } else if (state.currentApp === "log") {
-        state.callLogIndex = index;
-      }
-    }
 
-    openSelectedEntry();
-  }
-
-  function handleClick(event) {
-    const target = event.target;
-
-    if (!(target instanceof Element)) {
-      return;
-    }
-
-    const dialogAction = target.closest("[data-dialog-action]");
-    if (dialogAction) {
-      clearDialog();
-      render();
-      return;
-    }
-
-    const navKey = target.closest("[data-nav-key]")?.getAttribute("data-nav-key");
-    if (navKey) {
-      moveSelectionForCurrentContext(navKey);
-      render();
-      return;
-    }
-
-    const explicitSoftkey = target.closest("[data-softkey]")?.getAttribute("data-softkey");
-    if (explicitSoftkey) {
-      applySoftkey(explicitSoftkey);
-      render();
-      return;
-    }
-
-    const softkeyElement = target.closest(".symbian-softkeys__key");
-    if (softkeyElement) {
-      if (softkeyElement.classList.contains("symbian-softkeys__key--left")) {
-        applySoftkey("left");
-      } else if (softkeyElement.classList.contains("symbian-softkeys__key--center")) {
-        applySoftkey("center");
-      } else if (softkeyElement.classList.contains("symbian-softkeys__key--right")) {
-        applySoftkey("right");
-      }
-      render();
-      return;
-    }
-
-    const tabElement = target.closest("[data-tab-id]");
-    if (tabElement && state.view === "app") {
-      const tabId = tabElement.getAttribute("data-tab-id");
-      if (!tabId) {
-        return;
+        if (clockTickCount % 40 === 0) {
+          state.batteryLevel = clamp(state.batteryLevel - 1, 8, 100);
+        }
       }
 
-      if (state.currentApp === "contacts") {
-        state.contactsTab = tabId;
-      } else if (state.currentApp === "messages") {
-        state.messagesFolder = tabId;
-      } else if (state.currentApp === "calendar") {
-        state.calendarTab = tabId;
-      } else if (state.currentApp === "gallery") {
-        state.galleryAlbum = tabId;
-      } else if (state.currentApp === "browser") {
-        state.browserTab = tabId;
-      }
+      if (state.apps.music.playing) {
+        const track = getCurrentTrack();
+        state.apps.music.progressSec += 1;
 
-      render();
-      return;
-    }
-
-    const menuItem = target.closest("[data-app-id]");
-    if (menuItem && state.view === "menu") {
-      const appId = menuItem.getAttribute("data-app-id");
-      const index = Array.from(menuItem.parentElement?.children || []).indexOf(menuItem);
-      state.menuIndex = safeIndex(index, APP_MENU_ITEMS.length);
-
-      if (appId) {
-        openApp(appId);
-      }
-
-      render();
-      return;
-    }
-
-    const shortcutItem = target.closest("[data-shortcut-id]");
-    if (shortcutItem && state.view === "home") {
-      const shortcutId = shortcutItem.getAttribute("data-shortcut-id");
-      const index = Array.from(shortcutItem.parentElement?.children || []).indexOf(shortcutItem);
-      state.homeShortcutIndex = safeIndex(index, STANDBY_SHORTCUTS.length);
-
-      if (shortcutId) {
-        openApp(shortcutId);
-      }
-
-      render();
-      return;
-    }
-
-    const notificationItem = target.closest("[data-notification-id]");
-    if (notificationItem && state.view === "standby") {
-      const notificationId = notificationItem.getAttribute("data-notification-id");
-      if (notificationId) {
-        openApp(notificationId);
-      }
-      render();
-      return;
-    }
-
-    const listItem = target.closest("[data-item-id]");
-    if (listItem) {
-      handleItemSelectionClick(listItem);
-      render();
-    }
-  }
-
-  function handleKeydown(event) {
-    const { key } = event;
-
-    const softkeyMap = {
-      F1: "left",
-      F2: "center",
-      F3: "right",
-      q: "left",
-      w: "center",
-      e: "right",
-    };
-
-    if (key in softkeyMap) {
-      event.preventDefault();
-      applySoftkey(softkeyMap[key]);
-      render();
-      return;
-    }
-
-    if (key === "Escape" || key === "Backspace") {
-      event.preventDefault();
-      if (state.view === "standby" && state.phase === "ready") {
-        setToast("Standby active. Press Menu or center key to continue.", "info");
-      } else {
-        applySoftkey("right");
-      }
-      render();
-      return;
-    }
-
-    if (key === "Enter" || key === " ") {
-      event.preventDefault();
-      applySoftkey("center");
-      render();
-      return;
-    }
-
-    if (key === "m" || key === "M") {
-      event.preventDefault();
-      openMenu();
-      render();
-      return;
-    }
-
-    if (key === "h" || key === "H" || key === "Home") {
-      event.preventDefault();
-      goToStandby({ clearHistory: true });
-      render();
-      return;
-    }
-
-    if (key === "ArrowUp" || key === "ArrowDown" || key === "ArrowLeft" || key === "ArrowRight") {
-      event.preventDefault();
-      moveSelectionForCurrentContext(key);
-      render();
-      return;
-    }
-
-    if (state.view === "menu" && /^\d$/.test(key)) {
-      const index = Number(key) - 1;
-      if (index >= 0 && index < APP_MENU_ITEMS.length) {
-        event.preventDefault();
-        state.menuIndex = index;
-        openSelectedEntry();
-        render();
-      }
-    }
-  }
-
-  function startBootSequence() {
-    state.phase = "booting";
-    state.bootLineCount = 0;
-
-    clearTimer("bootIntervalId");
-    clearTimer("bootDoneTimeoutId");
-
-    timers.bootIntervalId = window.setInterval(() => {
-      if (state.bootLineCount < BOOT_LINES.length) {
-        state.bootLineCount += 1;
-        render();
-        return;
-      }
-
-      clearTimer("bootIntervalId");
-      timers.bootDoneTimeoutId = window.setTimeout(() => {
-        state.phase = "ready";
-        goToStandby({ clearHistory: true });
-        state.statusMessage = "System ready.";
-        render();
-      }, BOOT_FINISH_DELAY_MS);
-    }, BOOT_LINE_STEP_MS);
-  }
-
-  function startClockTick() {
-    clearTimer("clockIntervalId");
-
-    timers.clockIntervalId = window.setInterval(() => {
-      state.now = new Date();
-
-      if (state.phase === "ready") {
-        state.statusTick += 1;
-
-        if (state.musicIsPlaying) {
-          const track = MUSIC_LIBRARY[safeIndex(state.musicSelectedIndex, MUSIC_LIBRARY.length)];
-          if (track) {
-            state.musicElapsedSec += 1;
-            if (state.musicElapsedSec > track.lengthSec) {
-              state.musicElapsedSec = 0;
-              state.musicSelectedIndex = safeIndex(state.musicSelectedIndex + 1, MUSIC_LIBRARY.length);
-            }
-          }
+        if (state.apps.music.progressSec >= track.durationSec) {
+          state.apps.music.trackIndex = cycleIndex(state.apps.music.trackIndex, TRACKS.length, 1);
+          state.apps.music.progressSec = 0;
         }
       }
 
       render();
-    }, CLOCK_TICK_MS);
+    }, 1000);
   }
 
   function mount() {
-    window.addEventListener("keydown", handleKeydown);
-    root.addEventListener("click", handleClick);
+    if (mounted) {
+      return;
+    }
 
-    startClockTick();
+    mounted = true;
+
+    root.classList.add("shell-root");
+    root.dataset.runtime = "mobile-symbian";
+    root.tabIndex = -1;
+
+    root.addEventListener("click", handleClick);
+    window.addEventListener("keydown", handleKeyDown, true);
+
+    startHeartbeat();
     startBootSequence();
     render();
+
+    setManagedTimeout(() => {
+      root.focus({ preventScroll: true });
+    }, 0);
   }
 
   function unmount() {
-    window.removeEventListener("keydown", handleKeydown);
-    root.removeEventListener("click", handleClick);
+    if (!mounted) {
+      return;
+    }
+
+    mounted = false;
+
+    clearManagedTimeout(toastTimeoutId);
+    clearManagedTimeout(popupTimeoutId);
+    toastTimeoutId = null;
+    popupTimeoutId = null;
+
     clearAllTimers();
+
+    root.removeEventListener("click", handleClick);
+    window.removeEventListener("keydown", handleKeyDown, true);
+
+    delete root.dataset.runtime;
     root.innerHTML = "";
   }
 

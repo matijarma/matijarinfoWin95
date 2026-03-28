@@ -25,10 +25,9 @@ function ensureMobileStylesheet(mobileVariant) {
     return;
   }
 
-  const href =
-    mobileVariant === "v1995-s60"
-      ? "./src/mobile-variants/v1995-s60/symbian.css"
-      : "./src/styles/uiq-p1i.css";
+  void mobileVariant;
+
+  const href = "./src/styles/symbian.css";
 
   let link = document.getElementById(MOBILE_STYLESHEET_ID);
 

@@ -1,4 +1,4 @@
-import { createSymbianShell } from "../symbian/js/main.js";
+import { createSymbianShell } from "../src/symbian/js/main.js";
 import { createFileLayer } from "./core/file-layer/index.js";
 import {
   normalizeMobileVariant,
@@ -6,7 +6,7 @@ import {
 } from "./core/simulated-systems/index.js";
 
 const MOBILE_STYLESHEET_ID = "mobile-runtime-stylesheet";
-const SYMBIAN_STYLESHEET_HREF = "./symbian/styles.css";
+const SYMBIAN_STYLESHEET_HREF = "./src/symbian/styles.css";
 const SYMBIAN_ASSET_BASE_PATH = "./symbian";
 const MOBILE_FILE_SYSTEM_OS = "winxp";
 

@@ -330,7 +330,7 @@ class SymbianSimulation {
 
   getAppIcon(appId) {
     const manifest = this.appManager.getManifest(appId);
-    return manifest?.icon || resolveSymbianAssetPath("assets/app.png");
+    return manifest?.icon || resolveSymbianAssetPath("/visuals-to-use/symbian/app.png");
   }
 
   openSelectedHomeApp() {
@@ -497,7 +497,7 @@ class SymbianSimulation {
       {
         id: "__home__",
         name: "Home",
-        icon: resolveSymbianAssetPath("assets/app.png"),
+        icon: resolveSymbianAssetPath("/visuals-to-use/symbian/app.png"),
       },
       ...running,
     ];

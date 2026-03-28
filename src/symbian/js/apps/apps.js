@@ -95,7 +95,7 @@ export function resolveSymbianAssetPath(path) {
 }
 
 function appIcon(filename) {
-  return resolveSymbianAssetPath(`assets/${filename}`);
+  return resolveSymbianAssetPath(`/visuals-to-use/symbian/${filename}`);
 }
 
 function createPhoneApp() {

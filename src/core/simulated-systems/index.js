@@ -2,13 +2,13 @@ export const SIMULATED_SYSTEM_IDS = Object.freeze({
   DESKTOP_WIN95: "desktop-win95",
   DESKTOP_WINXP_SP2: "desktop-winxp-sp2",
   DESKTOP_UBUNTU_SERVER: "desktop-ubuntu-server",
-  MOBILE_SYMBIAN_S60_3RD: "mobile-symbian-s60-3rd",
   MOBILE_SYMBIAN_UIQ_P1I: "mobile-symbian-uiq-p1i",
-  MOBILE_SYMBIAN_V1995_S60: "mobile-symbian-v1995-s60",
+  MOBILE_SYMBIAN_S60_3RD: "mobile-symbian-uiq-p1i",
+  MOBILE_SYMBIAN_V1995_S60: "mobile-symbian-uiq-p1i",
 });
 
 export const DEFAULT_DESKTOP_SYSTEM_ID = SIMULATED_SYSTEM_IDS.DESKTOP_WIN95;
-export const DEFAULT_MOBILE_SYSTEM_ID = SIMULATED_SYSTEM_IDS.MOBILE_SYMBIAN_S60_3RD;
+export const DEFAULT_MOBILE_SYSTEM_ID = SIMULATED_SYSTEM_IDS.MOBILE_SYMBIAN_UIQ_P1I;
 
 const LEGACY_MOBILE_VARIANT_QUERY_KEYS = Object.freeze([
   "mobileVariant",
@@ -16,31 +16,31 @@ const LEGACY_MOBILE_VARIANT_QUERY_KEYS = Object.freeze([
   "symbian",
 ]);
 
-const MOBILE_VARIANT_FALLBACK = "s60-3rd";
+const MOBILE_VARIANT_FALLBACK = "uiq-p1i";
 
 const MOBILE_VARIANT_BY_ALIAS = Object.freeze({
-  "s60": "s60-3rd",
-  "s60-3rd": "s60-3rd",
-  "s60-3rd-edition": "s60-3rd",
-  "symbian9": "s60-3rd",
-  "symbian-9": "s60-3rd",
-  "symbian9.1": "s60-3rd",
-  "symbian-9.1": "s60-3rd",
-  "symbian-9-1": "s60-3rd",
-  "v1995": "s60-3rd",
-  "v1995-s60": "s60-3rd",
-  "legacy": "s60-3rd",
-  "uiq": "s60-3rd",
-  "uiq3": "s60-3rd",
-  "uiq3.0": "s60-3rd",
-  "p1i": "s60-3rd",
-  "uiq-p1i": "s60-3rd",
+  "s60": "uiq-p1i",
+  "s60-3rd": "uiq-p1i",
+  "s60-3rd-edition": "uiq-p1i",
+  "symbian9": "uiq-p1i",
+  "symbian-9": "uiq-p1i",
+  "symbian9.1": "uiq-p1i",
+  "symbian-9.1": "uiq-p1i",
+  "symbian-9-1": "uiq-p1i",
+  "v1995": "uiq-p1i",
+  "v1995-s60": "uiq-p1i",
+  "legacy": "uiq-p1i",
+  "uiq": "uiq-p1i",
+  "uiq3": "uiq-p1i",
+  "uiq3.0": "uiq-p1i",
+  "p1i": "uiq-p1i",
+  "uiq-p1i": "uiq-p1i",
 });
 
 const MOBILE_SYSTEM_ID_BY_VARIANT = Object.freeze({
-  "s60-3rd": SIMULATED_SYSTEM_IDS.MOBILE_SYMBIAN_S60_3RD,
-  "uiq-p1i": SIMULATED_SYSTEM_IDS.MOBILE_SYMBIAN_S60_3RD,
-  "v1995-s60": SIMULATED_SYSTEM_IDS.MOBILE_SYMBIAN_S60_3RD,
+  "uiq-p1i": SIMULATED_SYSTEM_IDS.MOBILE_SYMBIAN_UIQ_P1I,
+  "s60-3rd": SIMULATED_SYSTEM_IDS.MOBILE_SYMBIAN_UIQ_P1I,
+  "v1995-s60": SIMULATED_SYSTEM_IDS.MOBILE_SYMBIAN_UIQ_P1I,
 });
 
 const SYSTEM_DEFINITIONS = Object.freeze([
@@ -85,13 +85,20 @@ const SYSTEM_DEFINITIONS = Object.freeze([
     ]),
   }),
   Object.freeze({
-    id: SIMULATED_SYSTEM_IDS.MOBILE_SYMBIAN_S60_3RD,
-    label: "Mobile Symbian 9.1 S60 3rd Edition (2005-era)",
+    id: SIMULATED_SYSTEM_IDS.MOBILE_SYMBIAN_UIQ_P1I,
+    label: "Mobile Symbian UIQ 3.0 (Sony Ericsson P1i era)",
     family: "mobile",
-    mobileVariant: "s60-3rd",
+    mobileVariant: "uiq-p1i",
     aliases: Object.freeze([
       "mobile",
       "symbian",
+      "symbian-uiq",
+      "uiq",
+      "uiq3",
+      "uiq3.0",
+      "p1i",
+      "uiq-p1i",
+      "mobile-uiq",
       "mobile-s60",
       "symbian-s60",
       "s60-3rd",
@@ -106,14 +113,10 @@ const SYSTEM_DEFINITIONS = Object.freeze([
       "symbian-9-1",
       "legacy",
       "mobile-legacy",
-      "symbian-uiq",
-      "uiq",
-      "uiq3",
-      "uiq3.0",
-      "p1i",
-      "mobile-uiq",
       SIMULATED_SYSTEM_IDS.MOBILE_SYMBIAN_UIQ_P1I,
       SIMULATED_SYSTEM_IDS.MOBILE_SYMBIAN_V1995_S60,
+      "mobile-symbian-s60-3rd",
+      "mobile-symbian-v1995-s60",
     ]),
   }),
 ]);

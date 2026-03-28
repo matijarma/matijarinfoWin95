@@ -1,6 +1,20 @@
 {
   "schemaVersion": 1,
   "startMenuSubmenu": "Web Apps",
+  "windowDefaults": {
+    "landscape": {
+      "width": "25vw",
+      "height": "16vh",
+      "minWidth": 520,
+      "minHeight": 320
+    },
+    "portrait": {
+      "width": 520,
+      "height": 700,
+      "minWidth": 360,
+      "minHeight": 420
+    }
+  },
   "apps": [
     {
       "id": "sfss",
@@ -20,7 +34,8 @@
       "iconUrl": "https://dnevnikpotrosnje.kompmajstor.eu/favicon.ico",
       "orientation": "portrait",
       "defaultFullscreen": false,
-      "resizable": true
+      "resizable": true,
+      "aspectRatio": "7:15"
     },
     {
       "id": "kafic",
@@ -40,7 +55,8 @@
       "iconUrl": "https://psd.lat/favicon.ico",
       "orientation": "portrait",
       "defaultFullscreen": false,
-      "resizable": false
+      "resizable": false,
+      "aspectRatio": "7:16"
     },
     {
       "id": "lozinke",
@@ -50,7 +66,8 @@
       "iconUrl": "https://lozinke.kompmajstor.eu/favicon.ico",
       "orientation": "portrait",
       "defaultFullscreen": false,
-      "resizable": true
+      "resizable": false,
+      "aspectRatio": "7:18"
     },
     {
       "id": "cjenik",
@@ -58,9 +75,8 @@
       "description": "Digital price menus for bars",
       "url": "https://cjenik.app",
       "iconUrl": "https://cjenik.app/favicon.ico",
-      "orientation": "portrait",
-      "defaultFullscreen": false,
-      "resizable": false
+      "defaultFullscreen": true,
+      "resizable": true
     },
     {
       "id": "xml-u-pdf",
@@ -70,7 +86,8 @@
       "iconUrl": "https://aning.hr/favicon.ico",
       "orientation": "landscape",
       "defaultFullscreen": false,
-      "resizable": false
+      "resizable": false,
+      "aspectRatio": 1
     },
     {
       "id": "speedtype",
@@ -80,7 +97,7 @@
       "iconUrl": "https://matijar.info/favicon.ico",
       "orientation": "landscape",
       "defaultFullscreen": true,
-      "resizable": false
+      "resizable": true
     },
     {
       "id": "pongwars",

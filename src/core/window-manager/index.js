@@ -788,6 +788,9 @@ export function createWindowManager({ eventBus, container = null } = {}) {
     titleLabel.textContent = title || "Application";
     const normalizedInfoPanel = normalizeInfoPanelConfig(infoPanel);
 
+    const titlebarActions = document.createElement("div");
+    titlebarActions.className = "os-window__titlebar-actions";
+
     const controls = document.createElement("div");
     controls.className = "os-window__controls";
 
@@ -819,8 +822,9 @@ export function createWindowManager({ eventBus, container = null } = {}) {
     closeButton.setAttribute("aria-label", "Close window");
     closeButton.innerHTML = '<span class="os-window__control-icon os-window__control-icon--close"></span>';
 
-    controls.append(minimizeButton, maximizeButton, infoButton, closeButton);
-    titlebar.append(titleLabel, controls);
+    controls.append(minimizeButton, maximizeButton, closeButton);
+    titlebarActions.append(infoButton, controls);
+    titlebar.append(titleLabel, titlebarActions);
 
     const body = document.createElement("div");
     body.className = "os-window__body";

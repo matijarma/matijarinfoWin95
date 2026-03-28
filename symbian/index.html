@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>UIQ 3.0 Symbian Simulation</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="os-root">
+      <header class="status-bar" aria-label="Status bar">
+        <div class="status-left">
+          <div id="signal-bars" class="signal-bars" aria-hidden="true">
+            <span></span><span></span><span></span><span></span>
+          </div>
+          <span id="status-network" class="status-network">3G</span>
+          <span id="status-flight" class="status-chip hidden">FLT</span>
+        </div>
+
+        <div id="status-time" class="status-time">00:00</div>
+
+        <div class="status-right">
+          <span id="status-profile" class="status-mini hidden">SL</span>
+          <span id="status-wlan" class="status-mini hidden">WL</span>
+          <span id="status-bt" class="status-mini hidden">BT</span>
+          <span id="status-notify" class="status-badge hidden">0</span>
+          <span id="running-dot" class="running-dot hidden" aria-hidden="true"></span>
+          <div class="battery" aria-label="Battery">
+            <div id="battery-level" class="battery-level"></div>
+          </div>
+        </div>
+      </header>
+
+      <main id="main-content" class="main-content" aria-live="polite"></main>
+
+      <footer class="cba" aria-label="Control button area">
+        <button id="cba-left" class="cba-btn" type="button">More</button>
+        <button id="cba-center" class="cba-btn" type="button">Select</button>
+        <button id="cba-right" class="cba-btn" type="button">Back</button>
+      </footer>
+    </div>
+
+    <div id="overlay-host"></div>
+    <div id="banner-host" class="banner-host"></div>
+
+    <script type="module" src="js/main.js"></script>
+  </body>
+</html>

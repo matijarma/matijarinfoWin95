@@ -23,6 +23,7 @@
   --window-titlebar-gap: 3px;
   --window-title-font-size: 11px;
   --window-controls-gap: 1px;
+  --window-titlebar-actions-gap: 3px;
   --window-control-width: 16px;
   --window-control-height: 14px;
   --window-control-border-width: 1px;
@@ -30,8 +31,8 @@
   --window-control-radius: 0;
   --window-control-background: #c0c0c0;
   --window-control-icon-size: 8px;
-  --window-body-margin: 0 2px 2px;
-  --window-body-padding: 3px;
+  --window-body-margin: 0 1px 1px;
+  --window-body-padding: 1px;
   --window-body-border: 1px solid #808080;
   --window-body-background: #ffffff;
   --window-body-shadow: none;
@@ -930,6 +931,12 @@ select {
   gap: var(--window-controls-gap);
 }
 
+.os-window__titlebar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--window-titlebar-actions-gap);
+}
+
 .os-window__control,
 .taskbar__start,
 .taskbar__window,
@@ -1163,8 +1170,7 @@ select {
   gap: 6px;
 }
 
-.os-window-info-panel__button,
-.web-app-host__button {
+.os-window-info-panel__button {
   border: 2px solid;
   border-color: #ffffff #808080 #808080 #ffffff;
   background: #c0c0c0;
@@ -1173,8 +1179,7 @@ select {
   padding: 0 8px;
 }
 
-.os-window-info-panel__button:active,
-.web-app-host__button:active {
+.os-window-info-panel__button:active {
   border-color: #808080 #ffffff #ffffff #808080;
 }
 
@@ -1560,7 +1565,7 @@ select {
 .task-manager {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .control-panel-app h2,
@@ -1599,17 +1604,17 @@ select {
   display: flex;
   align-items: center;
   gap: 1px;
-  padding: 2px 4px 1px;
+  padding: 1px 3px 0;
   border-bottom: 1px solid #808080;
   background: #c0c0c0;
 }
 
 .folder-window__menu-button {
-  min-height: 18px;
-  min-width: 44px;
+  min-height: 16px;
+  min-width: 40px;
   border: 1px solid transparent;
   background: transparent;
-  padding: 0 6px;
+  padding: 0 5px;
 }
 
 .folder-window__menu-button:hover,
@@ -1627,16 +1632,16 @@ select {
   display: flex;
   align-items: center;
   gap: 2px;
-  padding: 3px 4px;
+  padding: 2px 3px;
   border-top: 1px solid #ffffff;
   border-bottom: 1px solid #808080;
   background: #c0c0c0;
 }
 
 .folder-window__tool-button {
-  min-width: 56px;
-  min-height: 22px;
-  padding: 0 8px;
+  min-width: 52px;
+  min-height: 19px;
+  padding: 0 6px;
 }
 
 .folder-window__tool-button:disabled {
@@ -1655,9 +1660,9 @@ select {
 .folder-window__addressbar {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 6px;
+  gap: 4px;
   align-items: center;
-  padding: 3px 4px;
+  padding: 2px 3px;
   border-top: 1px solid #ffffff;
   border-bottom: 1px solid #808080;
   background: #c0c0c0;
@@ -1669,12 +1674,12 @@ select {
 }
 
 .folder-window__address-value {
-  min-height: 21px;
+  min-height: 18px;
   min-width: 0;
-  border: 2px solid;
+  border: 1px solid;
   border-color: #808080 #ffffff #ffffff #808080;
   background: #ffffff;
-  padding: 2px 6px;
+  padding: 1px 5px;
   display: flex;
   align-items: center;
   white-space: nowrap;
@@ -1684,38 +1689,38 @@ select {
 
 .folder-window__surface {
   min-height: 0;
-  margin: 4px;
-  border: 2px solid;
+  margin: 2px;
+  border: 1px solid;
   border-color: #808080 #ffffff #ffffff #808080;
   background: #ffffff;
-  padding: 4px;
+  padding: 2px;
 }
 
 .control-panel-app__surface {
   flex: 1;
   min-height: 180px;
-  border: 2px solid;
+  border: 1px solid;
   border-color: #808080 #ffffff #ffffff #808080;
   background: #ffffff;
-  padding: 6px;
+  padding: 4px;
 }
 
 .folder-window__statusbar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(140px, 0.9fr);
-  gap: 2px;
-  padding: 2px 4px 4px;
+  grid-template-columns: minmax(0, 1fr) auto minmax(120px, 0.85fr);
+  gap: 1px;
+  padding: 1px 3px 2px;
   border-top: 1px solid #ffffff;
   background: #c0c0c0;
 }
 
 .folder-window__status-pane {
-  min-height: 19px;
+  min-height: 17px;
   min-width: 0;
   border: 1px solid;
   border-color: #808080 #ffffff #ffffff #808080;
   background: #c0c0c0;
-  padding: 2px 6px;
+  padding: 1px 5px;
   display: flex;
   align-items: center;
   font-size: 11px;
@@ -1726,7 +1731,7 @@ select {
 
 .folder-window__status-pane--selection {
   justify-content: center;
-  min-width: 112px;
+  min-width: 98px;
 }
 
 .folder-window__status-pane--details {
@@ -1739,7 +1744,7 @@ select {
 .network-status__status,
 .file-viewer__status {
   border-top: 1px solid #808080;
-  padding-top: 4px;
+  padding-top: 2px;
   font-size: 11px;
 }
 
@@ -1776,10 +1781,10 @@ select {
 .ie-window__toolbar {
   display: grid;
   grid-template-columns: auto 1fr auto;
-  gap: 6px;
+  gap: 4px;
   align-items: center;
-  padding: 3px;
-  border: 2px solid;
+  padding: 2px;
+  border: 1px solid;
   border-color: #ffffff #808080 #808080 #ffffff;
   background: #c0c0c0;
 }
@@ -1787,54 +1792,28 @@ select {
 .web-app-host {
   height: 100%;
   position: relative;
-  display: grid;
-  grid-template-rows: auto 1fr auto;
-  gap: 6px;
-}
-
-.web-app-host__toolbar {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 8px;
-  align-items: center;
-  padding: 3px;
-  border: 2px solid;
-  border-color: #ffffff #808080 #808080 #ffffff;
-  background: #c0c0c0;
-}
-
-.web-app-host__origin {
-  min-width: 0;
-  font-size: 11px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.web-app-host__actions {
   display: flex;
-  align-items: center;
-  gap: 4px;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  gap: 0;
 }
 
 .web-app-host__frame {
+  display: block;
+  flex: 1 1 auto;
   width: 100%;
-  height: 100%;
+  min-width: 0;
   min-height: 0;
-  border: 2px solid;
+  border: 1px solid;
   border-color: #808080 #ffffff #ffffff #808080;
   background: #ffffff;
 }
 
-.web-app-host--portrait .web-app-host__frame {
-  max-width: 560px;
-  justify-self: center;
-}
-
 .web-app-host__status {
-  margin: 0;
+  margin: 1px 0 0;
   border-top: 1px solid #808080;
-  padding-top: 4px;
+  padding-top: 2px;
   font-size: 11px;
 }
 
@@ -1843,7 +1822,7 @@ select {
 .clock-properties__input,
 .clock-properties__select {
   width: 100%;
-  min-height: 21px;
+  min-height: 19px;
   border: var(--ui-input-border-width) solid;
   border-color: var(--ui-input-border-color);
   padding: 1px 4px;
@@ -1855,14 +1834,14 @@ select {
 .clock-properties__button,
 .msconfig__button,
 .network-status__button {
-  min-width: 70px;
-  min-height: 21px;
+  min-width: 66px;
+  min-height: 19px;
 }
 
 .ie-window__frame {
   flex: 1;
   min-height: 180px;
-  border: 2px solid;
+  border: 1px solid;
   border-color: #808080 #ffffff #ffffff #808080;
 }
 
@@ -1890,7 +1869,7 @@ select {
 
 .clock-properties__tab {
   min-width: 116px;
-  min-height: 22px;
+  min-height: 20px;
 }
 
 .clock-properties__tab.is-active {
@@ -1962,7 +1941,7 @@ select {
   grid-template-rows: auto auto minmax(0, 1fr) auto;
   height: 100%;
   min-height: 0;
-  gap: 6px;
+  gap: 4px;
   overflow: hidden;
 }
 
@@ -1997,8 +1976,8 @@ select {
 
 .msconfig__tab {
   min-width: 86px;
-  min-height: 23px;
-  padding: 0 8px;
+  min-height: 20px;
+  padding: 0 7px;
   white-space: nowrap;
   flex: 0 0 auto;
   border-bottom: 0;
@@ -2019,10 +1998,10 @@ select {
 
 .msconfig__content {
   min-height: 0;
-  border: 2px solid;
+  border: 1px solid;
   border-color: #808080 #ffffff #ffffff #808080;
   background: #c0c0c0;
-  padding: 8px;
+  padding: 5px;
   overflow: hidden;
 }
 
@@ -2031,7 +2010,7 @@ select {
   min-height: 0;
   display: grid;
   align-content: start;
-  gap: 8px;
+  gap: 6px;
   overflow: auto;
 }
 
@@ -2044,12 +2023,12 @@ select {
   margin: 0;
   border: 1px solid var(--ui-fieldset-border-color);
   background: var(--ui-fieldset-background);
-  padding: 8px;
+  padding: 6px;
 }
 
 .msconfig__group {
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 
 .msconfig__group--script {
@@ -2094,7 +2073,7 @@ select {
 .msconfig__script-list {
   list-style: none;
   margin: 0;
-  padding: 4px;
+  padding: 3px;
   border: 1px solid #808080;
   background: #ffffff;
   display: grid;
@@ -2105,7 +2084,7 @@ select {
 }
 
 .msconfig__script-line {
-  min-height: 18px;
+  min-height: 16px;
 }
 
 .msconfig__todo-list {
@@ -2152,7 +2131,7 @@ select {
     "system action"
     "state action";
   gap: 4px 8px;
-  padding: 6px;
+  padding: 4px;
   border: 1px solid #7f7f7f;
   background: #f4f4f4;
   cursor: pointer;
@@ -2217,7 +2196,7 @@ select {
   grid-area: action;
   align-self: start;
   justify-self: start;
-  min-width: 108px;
+  min-width: 96px;
 }
 
 .msconfig__boot-options {
@@ -2241,8 +2220,8 @@ select {
 
 .msconfig__input {
   width: 70px;
-  min-height: 21px;
-  border: 2px solid;
+  min-height: 19px;
+  border: 1px solid;
   border-color: #808080 #ffffff #ffffff #808080;
   padding: 1px 4px;
   background: #ffffff;
@@ -2250,8 +2229,8 @@ select {
 
 .msconfig__button {
   min-width: 86px;
-  min-height: 23px;
-  padding: 0 9px;
+  min-height: 20px;
+  padding: 0 7px;
 }
 
 .msconfig__button--primary {
@@ -2269,9 +2248,9 @@ select {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: end;
-  gap: 8px;
+  gap: 6px;
   border-top: 1px solid #9f9f9f;
-  padding-top: 4px;
+  padding-top: 2px;
 }
 
 .msconfig__actions {
@@ -2296,10 +2275,10 @@ select {
 .network-status__panel {
   flex: 1;
   min-height: 0;
-  border: 2px solid;
+  border: 1px solid;
   border-color: var(--ui-panel-border-color);
   background: var(--ui-panel-background);
-  padding: 8px;
+  padding: 6px;
 }
 
 .network-status__grid {
@@ -2323,7 +2302,7 @@ select {
 
 .network-status__button {
   min-width: 84px;
-  min-height: 21px;
+  min-height: 19px;
 }
 
 .task-manager__menubar {
@@ -2351,8 +2330,8 @@ select {
 
 .task-manager__tab {
   min-width: 108px;
-  min-height: 22px;
-  padding: 0 9px;
+  min-height: 20px;
+  padding: 0 8px;
 }
 
 .task-manager__tab.is-active {
@@ -2363,10 +2342,10 @@ select {
 .task-manager__panel {
   flex: 1;
   min-height: 0;
-  border: 2px solid;
+  border: 1px solid;
   border-color: var(--ui-panel-border-color);
   background: var(--ui-panel-background);
-  padding: 5px;
+  padding: 3px;
 }
 
 .task-manager__list {
@@ -2491,25 +2470,25 @@ select {
 
 .task-manager__footer {
   display: grid;
-  gap: 6px;
+  gap: 4px;
 }
 
 .task-manager__status {
   margin: 0;
   border-top: 1px solid #808080;
-  padding-top: 4px;
+  padding-top: 2px;
   font-size: 11px;
 }
 
 .task-manager__action-group {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
 }
 
 .task-manager__button {
-  min-width: 100px;
-  min-height: 22px;
+  min-width: 92px;
+  min-height: 20px;
 }
 
 .timezone-map {
@@ -2601,6 +2580,7 @@ select {
   --window-titlebar-gap: 3px;
   --window-title-font-size: 11px;
   --window-controls-gap: 1px;
+  --window-titlebar-actions-gap: 3px;
   --window-control-width: 16px;
   --window-control-height: 14px;
   --window-control-border-width: 1px;
@@ -2608,8 +2588,8 @@ select {
   --window-control-radius: 0;
   --window-control-background: #c0c0c0;
   --window-control-icon-size: 8px;
-  --window-body-margin: 0 2px 2px;
-  --window-body-padding: 3px;
+  --window-body-margin: 0 1px 1px;
+  --window-body-padding: 1px;
   --window-body-border: 1px solid #808080;
   --window-body-background: #ffffff;
   --window-body-shadow: none;
@@ -2685,14 +2665,15 @@ select {
   --window-titlebar-gap: 5px;
   --window-title-font-size: 11px;
   --window-controls-gap: 2px;
+  --window-titlebar-actions-gap: 4px;
   --window-control-width: 22px;
   --window-control-height: 19px;
   --window-control-border-color: #3464a9 #1c4a87 #1a4278 #4f81c2;
   --window-control-radius: 3px 3px 2px 2px;
   --window-control-background: linear-gradient(180deg, #fdfefe 0%, #e3edf8 45%, #c7dcf5 100%);
   --window-control-icon-size: 9px;
-  --window-body-margin: 0 3px 3px;
-  --window-body-padding: 6px 7px;
+  --window-body-margin: 0 2px 2px;
+  --window-body-padding: 2px 3px;
   --window-body-border: 1px solid #7f9db9;
   --window-body-background: #ffffff;
   --window-body-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95);
@@ -2975,7 +2956,7 @@ select {
 }
 
 .desktop-shell.desktop-shell--winxp-sp2 .folder-window__tool-button {
-  min-height: 22px;
+  min-height: 20px;
   border-width: 1px;
   border-color: #b7cae4 #7f9dbf #7f9dbf #b7cae4;
   border-radius: 2px;
@@ -2999,8 +2980,8 @@ select {
 }
 
 .desktop-shell.desktop-shell--winxp-sp2 .folder-window__surface {
-  margin: 5px;
-  padding: 5px;
+  margin: 3px;
+  padding: 3px;
   border-width: 1px;
   border-color: #7f9db9;
 }
@@ -3020,7 +3001,7 @@ select {
 }
 
 .desktop-shell.desktop-shell--winxp-sp2 .msconfig {
-  gap: 8px;
+  gap: 5px;
 }
 
 .desktop-shell.desktop-shell--winxp-sp2 .msconfig__header {
@@ -3038,7 +3019,7 @@ select {
 }
 
 .desktop-shell.desktop-shell--winxp-sp2 .msconfig__tab {
-  min-height: 24px;
+  min-height: 21px;
   border-width: 1px;
   border-color: #b7cae4 #7f9dbf #ffffff #b7cae4;
   border-radius: 2px 2px 0 0;
@@ -3081,7 +3062,7 @@ select {
 }
 
 .desktop-shell.desktop-shell--winxp-sp2 .msconfig__button {
-  min-height: 24px;
+  min-height: 21px;
   border-width: 1px;
   border-color: #b7cae4 #7f9dbf #7f9dbf #b7cae4;
   border-radius: 2px;

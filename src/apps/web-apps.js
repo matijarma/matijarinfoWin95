@@ -1,18 +1,21 @@
 const DEFAULT_CONFIG_URL = new URL("./web-apps.config.json", import.meta.url).toString();
 const DEFAULT_START_SUBMENU = "Web Apps";
+const SUPPORTED_ORIENTATIONS = Object.freeze(["landscape", "portrait"]);
 
-const ORIENTATION_PRESETS = Object.freeze({
+const DEFAULT_WINDOW_CONFIG_BY_ORIENTATION = Object.freeze({
   landscape: {
     width: 900,
     height: 580,
     minWidth: 520,
     minHeight: 320,
+    aspectRatio: null,
   },
   portrait: {
     width: 520,
     height: 700,
     minWidth: 360,
     minHeight: 420,
+    aspectRatio: null,
   },
 });
 
@@ -36,9 +39,83 @@ function toBoolean(value, fallback = false) {
   return fallback;
 }
 
-function toFiniteNumber(value, fallback) {
+function parsePositiveNumber(value) {
   const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function toPositiveNumber(value, fallback) {
+  const parsed = parsePositiveNumber(value);
+  return parsed === null ? fallback : parsed;
+}
+
+function parseAspectRatio(value) {
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+    return value;
+  }
+
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  const numericRatio = Number(trimmed);
+
+  if (Number.isFinite(numericRatio) && numericRatio > 0) {
+    return numericRatio;
+  }
+
+  const ratioMatch = trimmed.match(
+    /^([0-9]+(?:\.[0-9]+)?)\s*[:/]\s*([0-9]+(?:\.[0-9]+)?)$/,
+  );
+
+  if (!ratioMatch) {
+    return null;
+  }
+
+  const ratioWidth = Number(ratioMatch[1]);
+  const ratioHeight = Number(ratioMatch[2]);
+
+  if (
+    !Number.isFinite(ratioWidth) ||
+    !Number.isFinite(ratioHeight) ||
+    ratioWidth <= 0 ||
+    ratioHeight <= 0
+  ) {
+    return null;
+  }
+
+  return ratioWidth / ratioHeight;
+}
+
+function normalizeWindowDefaults(rawDefaults) {
+  const source = rawDefaults && typeof rawDefaults === "object" ? rawDefaults : {};
+  const normalizedDefaults = {};
+
+  for (const orientation of SUPPORTED_ORIENTATIONS) {
+    const fallback = DEFAULT_WINDOW_CONFIG_BY_ORIENTATION[orientation];
+    const rawOrientationDefaults =
+      source[orientation] && typeof source[orientation] === "object"
+        ? source[orientation]
+        : {};
+
+    normalizedDefaults[orientation] = {
+      width: toPositiveNumber(rawOrientationDefaults.width, fallback.width),
+      height: toPositiveNumber(rawOrientationDefaults.height, fallback.height),
+      minWidth: toPositiveNumber(rawOrientationDefaults.minWidth, fallback.minWidth),
+      minHeight: toPositiveNumber(rawOrientationDefaults.minHeight, fallback.minHeight),
+      aspectRatio:
+        parseAspectRatio(rawOrientationDefaults.aspectRatio) ??
+        parseAspectRatio(fallback.aspectRatio),
+    };
+  }
+
+  return normalizedDefaults;
 }
 
 function normalizeOrientation(value) {
@@ -152,26 +229,82 @@ function normalizePlacement(rawApp) {
   return placements;
 }
 
-function normalizeWindowConfig(rawApp, orientation, resizable) {
-  const preset = ORIENTATION_PRESETS[orientation];
-  const windowOverrides = rawApp && typeof rawApp.window === "object" ? rawApp.window : {};
+function resolveWindowSizeFromAspect({
+  explicitWidth,
+  explicitHeight,
+  fallbackWidth,
+  fallbackHeight,
+  aspectRatio,
+}) {
+  if (!aspectRatio) {
+    return {
+      width: Math.round(explicitWidth ?? fallbackWidth),
+      height: Math.round(explicitHeight ?? fallbackHeight),
+    };
+  }
 
-  const width = toFiniteNumber(
-    rawApp.width ?? windowOverrides.width,
-    preset.width,
-  );
-  const height = toFiniteNumber(
-    rawApp.height ?? windowOverrides.height,
-    preset.height,
-  );
-  const minWidth = toFiniteNumber(
-    rawApp.minWidth ?? windowOverrides.minWidth,
-    preset.minWidth,
-  );
-  const minHeight = toFiniteNumber(
-    rawApp.minHeight ?? windowOverrides.minHeight,
-    preset.minHeight,
-  );
+  let width = explicitWidth;
+  let height = explicitHeight;
+
+  if (width !== null && height === null) {
+    height = width / aspectRatio;
+  } else if (width === null && height !== null) {
+    width = height * aspectRatio;
+  } else if (width !== null && height !== null) {
+    // Width is authoritative if both were supplied with a custom aspect ratio.
+    height = width / aspectRatio;
+  } else {
+    const heightFromWidth = fallbackWidth / aspectRatio;
+    const widthFromHeight = fallbackHeight * aspectRatio;
+    const widthAnchoredDelta = Math.abs(heightFromWidth - fallbackHeight);
+    const heightAnchoredDelta = Math.abs(widthFromHeight - fallbackWidth);
+
+    if (widthAnchoredDelta <= heightAnchoredDelta) {
+      width = fallbackWidth;
+      height = heightFromWidth;
+    } else {
+      width = widthFromHeight;
+      height = fallbackHeight;
+    }
+  }
+
+  return {
+    width: Math.max(1, Math.round(width)),
+    height: Math.max(1, Math.round(height)),
+  };
+}
+
+function normalizeWindowConfig(
+  rawApp,
+  orientation,
+  resizable,
+  startMaximized,
+  defaultWindowConfigByOrientation,
+) {
+  const windowOverrides = rawApp && typeof rawApp.window === "object" ? rawApp.window : {};
+  const isLockedFullscreen = startMaximized && !resizable;
+  const presetOrientation = isLockedFullscreen ? "landscape" : orientation;
+  const preset =
+    defaultWindowConfigByOrientation?.[presetOrientation] ||
+    DEFAULT_WINDOW_CONFIG_BY_ORIENTATION[presetOrientation];
+  const explicitWidth = parsePositiveNumber(rawApp.width ?? windowOverrides.width);
+  const explicitHeight = parsePositiveNumber(rawApp.height ?? windowOverrides.height);
+  const configuredAspectRatio = parseAspectRatio(rawApp.aspectRatio ?? windowOverrides.aspectRatio);
+  const fallbackAspectRatio = parseAspectRatio(preset.aspectRatio);
+  const aspectRatio = isLockedFullscreen ? null : configuredAspectRatio || fallbackAspectRatio;
+  const { width, height } = resolveWindowSizeFromAspect({
+    explicitWidth,
+    explicitHeight,
+    fallbackWidth: preset.width,
+    fallbackHeight: preset.height,
+    aspectRatio,
+  });
+  const explicitMinWidth = parsePositiveNumber(rawApp.minWidth ?? windowOverrides.minWidth);
+  const explicitMinHeight = parsePositiveNumber(rawApp.minHeight ?? windowOverrides.minHeight);
+
+  const minWidth = explicitMinWidth === null ? Math.min(preset.minWidth, width) : explicitMinWidth;
+  const minHeight =
+    explicitMinHeight === null ? Math.min(preset.minHeight, height) : explicitMinHeight;
 
   return {
     width,
@@ -182,10 +315,8 @@ function normalizeWindowConfig(rawApp, orientation, resizable) {
     maximizable: resizable,
     minimizable: toBoolean(rawApp.minimizable, true),
     closable: toBoolean(rawApp.closable, true),
-    startMaximized: toBoolean(
-      rawApp.defaultFullscreen ?? rawApp.fullscreenDefault,
-      false,
-    ),
+    startMaximized,
+    aspectRatio,
   };
 }
 
@@ -193,7 +324,13 @@ function toOrientationLabel(orientation) {
   return orientation === "portrait" ? "Portrait" : "Landscape";
 }
 
-function normalizeApp(rawApp, index, usedIds, defaultSubmenu) {
+function normalizeApp(
+  rawApp,
+  index,
+  usedIds,
+  defaultSubmenu,
+  defaultWindowConfigByOrientation,
+) {
   if (!rawApp || typeof rawApp !== "object") {
     return null;
   }
@@ -207,8 +344,19 @@ function normalizeApp(rawApp, index, usedIds, defaultSubmenu) {
   const parsedUrl = new URL(normalizedUrl);
   const orientation = normalizeOrientation(rawApp.orientation);
   const resizable = toBoolean(rawApp.resizable, true);
+  const startMaximized = toBoolean(
+    rawApp.defaultFullscreen ?? rawApp.fullscreenDefault,
+    false,
+  );
   const title = normalizeText(rawApp.title, parsedUrl.hostname);
   const baseId = normalizeText(rawApp.id, `${parsedUrl.hostname}-${index + 1}`);
+  const windowConfig = normalizeWindowConfig(
+    rawApp,
+    orientation,
+    resizable,
+    startMaximized,
+    defaultWindowConfigByOrientation,
+  );
 
   return {
     id: buildUniqueId(baseId, usedIds),
@@ -222,14 +370,9 @@ function normalizeApp(rawApp, index, usedIds, defaultSubmenu) {
     resizable,
     startMenuSubmenu: normalizeText(rawApp.startMenuSubmenu, defaultSubmenu),
     openDirectLabel: normalizeText(rawApp.openDirectLabel, "Open Directly"),
-    launchModeLabel: toBoolean(
-      rawApp.defaultFullscreen ?? rawApp.fullscreenDefault,
-      false,
-    )
-      ? "Fullscreen by default"
-      : "Windowed by default",
+    launchModeLabel: startMaximized ? "Fullscreen by default" : "Windowed by default",
     placements: normalizePlacement(rawApp),
-    window: normalizeWindowConfig(rawApp, orientation, resizable),
+    window: windowConfig,
   };
 }
 
@@ -242,17 +385,27 @@ export async function loadWebAppConfigs(configUrl = DEFAULT_CONFIG_URL) {
     }
 
     const payload = await response.json();
+    const configRoot = payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
     const rawApps = Array.isArray(payload)
       ? payload
       : Array.isArray(payload?.apps)
         ? payload.apps
         : [];
+    const defaultWindowConfigByOrientation = normalizeWindowDefaults(
+      configRoot.windowDefaults ?? configRoot.defaultWindowConfig,
+    );
     const defaultSubmenu = normalizeText(payload?.startMenuSubmenu, DEFAULT_START_SUBMENU);
     const usedIds = new Set();
     const normalizedApps = [];
 
     for (let index = 0; index < rawApps.length; index += 1) {
-      const normalized = normalizeApp(rawApps[index], index, usedIds, defaultSubmenu);
+      const normalized = normalizeApp(
+        rawApps[index],
+        index,
+        usedIds,
+        defaultSubmenu,
+        defaultWindowConfigByOrientation,
+      );
 
       if (!normalized) {
         continue;
@@ -277,28 +430,6 @@ function createWebAppWindowContent(appConfig, launchPayload = {}) {
   const root = document.createElement("section");
   root.className = `web-app-host web-app-host--${appConfig.orientation}`;
 
-  const toolbar = document.createElement("header");
-  toolbar.className = "web-app-host__toolbar";
-
-  const titleNode = document.createElement("span");
-  titleNode.className = "web-app-host__origin";
-
-  const toolbarActions = document.createElement("div");
-  toolbarActions.className = "web-app-host__actions";
-
-  const reloadButton = document.createElement("button");
-  reloadButton.type = "button";
-  reloadButton.className = "web-app-host__button";
-  reloadButton.textContent = "Reload";
-
-  const openDirectButton = document.createElement("button");
-  openDirectButton.type = "button";
-  openDirectButton.className = "web-app-host__button";
-  openDirectButton.textContent = appConfig.openDirectLabel;
-
-  toolbarActions.append(reloadButton, openDirectButton);
-  toolbar.append(titleNode, toolbarActions);
-
   const iframe = document.createElement("iframe");
   iframe.className = "web-app-host__frame";
   iframe.title = `${appConfig.title} app viewport`;
@@ -309,7 +440,7 @@ function createWebAppWindowContent(appConfig, launchPayload = {}) {
   const statusNode = document.createElement("p");
   statusNode.className = "web-app-host__status";
 
-  root.append(toolbar, iframe, statusNode);
+  root.append(iframe, statusNode);
 
   let currentUrl = normalizeLaunchUrl(launchPayload?.url, appConfig.url);
 
@@ -319,7 +450,6 @@ function createWebAppWindowContent(appConfig, launchPayload = {}) {
 
   function navigate(nextUrl) {
     currentUrl = normalizeLaunchUrl(nextUrl, appConfig.url);
-    titleNode.textContent = currentUrl;
     iframe.src = currentUrl;
     setStatus(`Loading ${currentUrl}...`);
   }
@@ -329,21 +459,11 @@ function createWebAppWindowContent(appConfig, launchPayload = {}) {
   };
 
   const frameErrorHandler = () => {
-    setStatus("The app failed to load in iframe. Use Open Directly.");
-  };
-
-  const reloadHandler = () => {
-    navigate(currentUrl);
-  };
-
-  const openDirectHandler = () => {
-    window.open(currentUrl, "_blank", "noopener,noreferrer");
+    setStatus("The app failed to load in iframe. Open it directly from App Info.");
   };
 
   iframe.addEventListener("load", frameLoadHandler);
   iframe.addEventListener("error", frameErrorHandler);
-  reloadButton.addEventListener("click", reloadHandler);
-  openDirectButton.addEventListener("click", openDirectHandler);
 
   navigate(currentUrl);
 
@@ -352,8 +472,6 @@ function createWebAppWindowContent(appConfig, launchPayload = {}) {
     dispose() {
       iframe.removeEventListener("load", frameLoadHandler);
       iframe.removeEventListener("error", frameErrorHandler);
-      reloadButton.removeEventListener("click", reloadHandler);
-      openDirectButton.removeEventListener("click", openDirectHandler);
     },
   };
 }

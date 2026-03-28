@@ -1,10 +1,24 @@
-import { createSymbianShell } from "./mobile-symbian/index.js";
+import { createSymbianShell } from "../symbian/js/main.js";
+import { createFileLayer } from "./core/file-layer/index.js";
 import {
   normalizeMobileVariant,
   readLegacyMobileVariantFromSearch,
 } from "./core/simulated-systems/index.js";
 
 const MOBILE_STYLESHEET_ID = "mobile-runtime-stylesheet";
+const SYMBIAN_STYLESHEET_HREF = "./symbian/styles.css";
+const SYMBIAN_ASSET_BASE_PATH = "./symbian";
+const MOBILE_FILE_SYSTEM_OS = "winxp";
+
+let sharedFileLayerPromise = null;
+
+function loadSharedFileLayer() {
+  if (!sharedFileLayerPromise) {
+    sharedFileLayerPromise = createFileLayer();
+  }
+
+  return sharedFileLayerPromise;
+}
 
 function readMobileVariant() {
   return readLegacyMobileVariantFromSearch().variant;
@@ -21,12 +35,10 @@ function resolveMobileVariant(variant) {
 function ensureMobileStylesheet(mobileVariant) {
   const head = document.head;
   if (!head) {
-    return;
+    return () => {};
   }
 
   void mobileVariant;
-
-  const href = "./src/styles/symbian.css";
 
   let link = document.getElementById(MOBILE_STYLESHEET_ID);
 
@@ -37,17 +49,32 @@ function ensureMobileStylesheet(mobileVariant) {
     head.append(link);
   }
 
-  if (link.href !== new URL(href, window.location.href).href) {
-    link.href = href;
+  if (link.href !== new URL(SYMBIAN_STYLESHEET_HREF, window.location.href).href) {
+    link.href = SYMBIAN_STYLESHEET_HREF;
   }
+
+  return () => {
+    if (link?.parentNode) {
+      link.parentNode.removeChild(link);
+    }
+  };
 }
 
-export function mountMobileRuntime(root, { variant } = {}) {
+export async function mountMobileRuntime(
+  root,
+  { variant, requestSystemSwitch } = {},
+) {
   const requestedVariant = resolveMobileVariant(variant);
-  const mobileVariant = "s60-3rd";
-
-  ensureMobileStylesheet(mobileVariant);
-  const shell = createSymbianShell({ root, variant: mobileVariant });
+  const mobileVariant = "uiq-p1i";
+  const teardownStylesheet = ensureMobileStylesheet(mobileVariant);
+  const fileLayer = await loadSharedFileLayer();
+  const shell = await createSymbianShell({
+    root,
+    fileLayer,
+    fileSystemOs: MOBILE_FILE_SYSTEM_OS,
+    assetBasePath: SYMBIAN_ASSET_BASE_PATH,
+    requestSystemSwitch,
+  });
 
   root.dataset.mobileVariantRequested = requestedVariant;
   root.dataset.mobileVariant = mobileVariant;
@@ -57,5 +84,6 @@ export function mountMobileRuntime(root, { variant } = {}) {
     delete root.dataset.mobileVariantRequested;
     delete root.dataset.mobileVariant;
     shell.unmount();
+    teardownStylesheet();
   };
 }

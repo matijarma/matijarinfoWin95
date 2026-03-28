@@ -10,6 +10,31 @@ const SHELL_START_DIRECTORY = "/";
 const KERNEL_SIGNATURE = "Linux portfolio-server 5.15.0-portfolio #1 SMP x86_64 GNU/Linux";
 const SHELL_HISTORY_STORAGE_KEY = "ubuntu-server.shell.history.v1";
 const SHELL_HISTORY_MAX_ENTRIES = 300;
+const LLM_SHELL_ENDPOINT = "https://llmshell.matijar.info";
+const LOCAL_FAST_PATH_META_CONTEXT =
+  "User just opened the CV locally. Give a 1-sentence snarky sysadmin observation to print to console.";
+const LOCAL_COMMANDS = new Set([
+  "help",
+  "history",
+  "clear",
+  "date",
+  "uptime",
+  "whoami",
+  "hostname",
+  "uname",
+  "pwd",
+  "cd",
+  "ls",
+  "cat",
+  "open",
+  "oslist",
+  "boot",
+  "reboot",
+  "shutdown",
+  "poweroff",
+  "halt",
+  "msconfig",
+]);
 
 const INSTALLED_OS_TARGETS = Object.freeze([
   Object.freeze({
@@ -250,6 +275,8 @@ function clampShellHistory(historyEntries) {
 export function createUbuntuServerShell({
   root,
   fileLayer,
+  eventBus,
+  windowManager,
   requestSystemSwitch,
   onRequestSystemSwitch,
   switchContext,
@@ -280,6 +307,11 @@ export function createUbuntuServerShell({
   let historyDraftValue = "";
   const cleanupFns = [];
   const activeTimers = new Set();
+  const activeIntervals = new Set();
+  const llmOverlayFiles = new Map();
+  const llmOverlayDirectories = new Set(["/"]);
+  const llmDeletedPaths = new Set();
+  let localMetaRequestInFlight = false;
 
   function scheduleTimeout(callback, delayMs) {
     const timerId = window.setTimeout(() => {
@@ -291,12 +323,24 @@ export function createUbuntuServerShell({
     return timerId;
   }
 
+  function scheduleInterval(callback, delayMs) {
+    const intervalId = window.setInterval(callback, delayMs);
+    activeIntervals.add(intervalId);
+    return intervalId;
+  }
+
   function clearTimers() {
     for (const timerId of activeTimers) {
       clearTimeout(timerId);
     }
 
     activeTimers.clear();
+
+    for (const intervalId of activeIntervals) {
+      clearInterval(intervalId);
+    }
+
+    activeIntervals.clear();
   }
 
   function clearCleanup() {
@@ -309,13 +353,15 @@ export function createUbuntuServerShell({
   function resetView() {
     clearTimers();
     clearCleanup();
+    windowManager?.closeAll?.();
+    windowManager?.setContainer?.(null);
     activeInput = null;
     activeOutput = null;
   }
 
   function appendOutputLine(text, variant = "plain") {
     if (!(activeOutput instanceof HTMLElement)) {
-      return;
+      return null;
     }
 
     const line = document.createElement("div");
@@ -326,6 +372,8 @@ export function createUbuntuServerShell({
     if (activeOutput instanceof HTMLElement) {
       activeOutput.scrollTop = activeOutput.scrollHeight;
     }
+
+    return line;
   }
 
   function appendOutputBlock(text, variant = "plain") {
@@ -439,6 +487,438 @@ export function createUbuntuServerShell({
 
   function resolveTargetPath(pathInput) {
     return resolveLinuxPath(pathInput, currentDirectory);
+  }
+
+  function getPathBaseName(pathInput) {
+    const normalizedPath = normalizeLinuxPath(pathInput);
+
+    if (!normalizedPath || normalizedPath === "/") {
+      return "/";
+    }
+
+    const segments = normalizedPath.split("/").filter(Boolean);
+    return segments[segments.length - 1] || "/";
+  }
+
+  function getParentPath(pathInput) {
+    const normalizedPath = normalizeLinuxPath(pathInput);
+
+    if (!normalizedPath || normalizedPath === "/") {
+      return null;
+    }
+
+    const segments = normalizedPath.split("/").filter(Boolean);
+    segments.pop();
+    return segments.length === 0 ? "/" : `/${segments.join("/")}`;
+  }
+
+  function isPathDeleted(pathInput) {
+    const normalizedPath = normalizeLinuxPath(pathInput);
+
+    if (!normalizedPath) {
+      return false;
+    }
+
+    for (const deletedPath of llmDeletedPaths) {
+      if (normalizedPath === deletedPath || normalizedPath.startsWith(`${deletedPath}/`)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  function clearDeletedMarkersForPath(pathInput) {
+    const normalizedPath = normalizeLinuxPath(pathInput);
+
+    if (!normalizedPath) {
+      return;
+    }
+
+    for (const deletedPath of [...llmDeletedPaths]) {
+      if (
+        normalizedPath === deletedPath ||
+        normalizedPath.startsWith(`${deletedPath}/`) ||
+        deletedPath.startsWith(`${normalizedPath}/`)
+      ) {
+        llmDeletedPaths.delete(deletedPath);
+      }
+    }
+  }
+
+  function ensureOverlayDirectory(pathInput) {
+    const normalizedPath = normalizeLinuxPath(pathInput);
+
+    if (!normalizedPath) {
+      return;
+    }
+
+    if (normalizedPath === "/") {
+      llmOverlayDirectories.add("/");
+      return;
+    }
+
+    const segments = normalizedPath.split("/").filter(Boolean);
+    let currentPath = "";
+
+    llmOverlayDirectories.add("/");
+
+    for (const segment of segments) {
+      currentPath = currentPath ? `${currentPath}/${segment}` : `/${segment}`;
+      llmOverlayDirectories.add(currentPath);
+      clearDeletedMarkersForPath(currentPath);
+    }
+  }
+
+  function markPathDeleted(pathInput) {
+    const normalizedPath = normalizeLinuxPath(pathInput);
+
+    if (!normalizedPath || normalizedPath === "/") {
+      return;
+    }
+
+    llmDeletedPaths.add(normalizedPath);
+
+    for (const overlayPath of [...llmOverlayFiles.keys()]) {
+      if (overlayPath === normalizedPath || overlayPath.startsWith(`${normalizedPath}/`)) {
+        llmOverlayFiles.delete(overlayPath);
+      }
+    }
+
+    for (const directoryPath of [...llmOverlayDirectories]) {
+      if (
+        directoryPath !== "/" &&
+        (directoryPath === normalizedPath || directoryPath.startsWith(`${normalizedPath}/`))
+      ) {
+        llmOverlayDirectories.delete(directoryPath);
+      }
+    }
+  }
+
+  const runtimeFileSystem = {
+    createFile(pathInput, content = "") {
+      const normalizedPath = resolveTargetPath(pathInput);
+
+      if (!normalizedPath || normalizedPath === "/") {
+        return false;
+      }
+
+      clearDeletedMarkersForPath(normalizedPath);
+      const parentPath = getParentPath(normalizedPath);
+
+      if (parentPath) {
+        ensureOverlayDirectory(parentPath);
+      }
+
+      llmOverlayFiles.set(normalizedPath, String(content ?? ""));
+      return true;
+    },
+    writeFile(pathInput, content = "") {
+      return this.createFile(pathInput, content);
+    },
+    appendFile(pathInput, content = "") {
+      const normalizedPath = resolveTargetPath(pathInput);
+
+      if (!normalizedPath || normalizedPath === "/") {
+        return false;
+      }
+
+      clearDeletedMarkersForPath(normalizedPath);
+      const existingContent = llmOverlayFiles.get(normalizedPath) || "";
+      const parentPath = getParentPath(normalizedPath);
+
+      if (parentPath) {
+        ensureOverlayDirectory(parentPath);
+      }
+
+      llmOverlayFiles.set(normalizedPath, `${existingContent}${String(content ?? "")}`);
+      return true;
+    },
+    createDirectory(pathInput) {
+      const normalizedPath = resolveTargetPath(pathInput);
+
+      if (!normalizedPath) {
+        return false;
+      }
+
+      clearDeletedMarkersForPath(normalizedPath);
+      ensureOverlayDirectory(normalizedPath);
+      return true;
+    },
+    deletePath(pathInput) {
+      const normalizedPath = resolveTargetPath(pathInput);
+
+      if (!normalizedPath || normalizedPath === "/") {
+        return false;
+      }
+
+      markPathDeleted(normalizedPath);
+      return true;
+    },
+    deleteFile(pathInput) {
+      return this.deletePath(pathInput);
+    },
+    deleteDirectory(pathInput) {
+      return this.deletePath(pathInput);
+    },
+    movePath(fromPathInput, toPathInput) {
+      const fromPath = resolveTargetPath(fromPathInput);
+      const toPath = resolveTargetPath(toPathInput);
+
+      if (!fromPath || !toPath || fromPath === "/" || toPath === "/") {
+        return false;
+      }
+
+      const existingFileContent = llmOverlayFiles.get(fromPath);
+      const hadOverlayDirectory = llmOverlayDirectories.has(fromPath);
+      const hadAnyChildren =
+        Array.from(llmOverlayFiles.keys()).some((filePath) => filePath.startsWith(`${fromPath}/`)) ||
+        Array.from(llmOverlayDirectories).some(
+          (directoryPath) => directoryPath !== fromPath && directoryPath.startsWith(`${fromPath}/`),
+        );
+
+      if (typeof existingFileContent === "string") {
+        this.createFile(toPath, existingFileContent);
+        this.deleteFile(fromPath);
+        return true;
+      }
+
+      if (hadOverlayDirectory || hadAnyChildren) {
+        this.createDirectory(toPath);
+
+        for (const [sourcePath, content] of [...llmOverlayFiles.entries()]) {
+          if (!sourcePath.startsWith(`${fromPath}/`)) {
+            continue;
+          }
+
+          const targetPath = `${toPath}${sourcePath.slice(fromPath.length)}`;
+          this.createFile(targetPath, content);
+        }
+
+        for (const sourcePath of [...llmOverlayDirectories]) {
+          if (!sourcePath.startsWith(`${fromPath}/`)) {
+            continue;
+          }
+
+          const targetPath = `${toPath}${sourcePath.slice(fromPath.length)}`;
+          this.createDirectory(targetPath);
+        }
+
+        this.deleteDirectory(fromPath);
+        return true;
+      }
+
+      return false;
+    },
+  };
+
+  function collectOverlayChildEntries(parentPath) {
+    const normalizedParentPath = normalizeLinuxPath(parentPath);
+
+    if (!normalizedParentPath || isPathDeleted(normalizedParentPath)) {
+      return [];
+    }
+
+    const childEntriesByName = new Map();
+
+    const pushOverlayEntry = (absoluteChildPath, type) => {
+      const normalizedChildPath = normalizeLinuxPath(absoluteChildPath);
+
+      if (
+        !normalizedChildPath ||
+        normalizedChildPath === normalizedParentPath ||
+        isPathDeleted(normalizedChildPath)
+      ) {
+        return;
+      }
+
+      const parentPrefix = normalizedParentPath === "/" ? "/" : `${normalizedParentPath}/`;
+
+      if (!normalizedChildPath.startsWith(parentPrefix)) {
+        return;
+      }
+
+      const relativePath = normalizedChildPath.slice(parentPrefix.length);
+
+      if (!relativePath || relativePath.includes("/")) {
+        return;
+      }
+
+      childEntriesByName.set(relativePath, {
+        id: `llm-overlay:${type}:${normalizedChildPath}`,
+        name: relativePath,
+        label: relativePath,
+        type,
+        nodeType: type,
+        path: normalizedChildPath,
+        source: "llm-overlay",
+      });
+    };
+
+    for (const directoryPath of llmOverlayDirectories) {
+      if (directoryPath === "/") {
+        continue;
+      }
+
+      pushOverlayEntry(directoryPath, "directory");
+    }
+
+    for (const filePath of llmOverlayFiles.keys()) {
+      pushOverlayEntry(filePath, "file");
+    }
+
+    return Array.from(childEntriesByName.values());
+  }
+
+  function mergeDirectoryEntries(absolutePath, baseEntries = []) {
+    const mergedEntriesByName = new Map();
+
+    for (const entry of baseEntries) {
+      const entryName = entry?.name || entry?.label || "";
+
+      if (!entryName) {
+        continue;
+      }
+
+      const entryPath = normalizeLinuxPath(entry.path) || resolveLinuxPath(entryName, absolutePath);
+
+      if (!entryPath || isPathDeleted(entryPath)) {
+        continue;
+      }
+
+      mergedEntriesByName.set(entryName, {
+        ...entry,
+        path: entryPath,
+      });
+    }
+
+    for (const overlayEntry of collectOverlayChildEntries(absolutePath)) {
+      mergedEntriesByName.set(overlayEntry.name, overlayEntry);
+    }
+
+    return Array.from(mergedEntriesByName.values()).sort((left, right) => {
+      const leftType = left.nodeType || left.type;
+      const rightType = right.nodeType || right.type;
+
+      if (leftType !== rightType) {
+        return leftType === "directory" ? -1 : 1;
+      }
+
+      return String(left.name || left.label || "").localeCompare(
+        String(right.name || right.label || ""),
+      );
+    });
+  }
+
+  function resolveOverlayFileContent(pathInput) {
+    const normalizedPath = normalizeLinuxPath(pathInput);
+
+    if (!normalizedPath || isPathDeleted(normalizedPath)) {
+      return null;
+    }
+
+    if (llmOverlayFiles.has(normalizedPath)) {
+      return llmOverlayFiles.get(normalizedPath);
+    }
+
+    return null;
+  }
+
+  function buildCurrentDirectorySnapshot(pathInput = currentDirectory) {
+    const resolvedListing = resolveDirectoryListing(pathInput);
+
+    if (!resolvedListing) {
+      return {
+        path: resolveTargetPath(pathInput) || currentDirectory,
+        entries: [],
+      };
+    }
+
+    return {
+      path: resolvedListing.path,
+      entries: resolvedListing.entries.map((entry) => ({
+        name: entry.name || entry.label || "",
+        type: entry.nodeType || entry.type || "unknown",
+        path: entry.path || null,
+      })),
+    };
+  }
+
+  function emitUiEvent(eventType, payload = {}) {
+    if (typeof eventType !== "string" || !eventType.trim()) {
+      return false;
+    }
+
+    if (typeof eventBus?.emit !== "function") {
+      return false;
+    }
+
+    eventBus.emit(eventType, payload);
+    return true;
+  }
+
+  function requestAppLaunch(appId, launchPayload) {
+    if (typeof appId !== "string" || !appId.trim()) {
+      return false;
+    }
+
+    return emitUiEvent("shell:app-launch-requested", {
+      appId: appId.trim(),
+      launchPayload,
+    });
+  }
+
+  function createLoadingIndicator() {
+    const line = appendOutputLine("[Kernel daemon computing...]", "status");
+
+    if (!(line instanceof HTMLElement)) {
+      return () => {};
+    }
+
+    let step = 0;
+    const intervalId = scheduleInterval(() => {
+      if (!line.isConnected) {
+        clearInterval(intervalId);
+        activeIntervals.delete(intervalId);
+        return;
+      }
+
+      step = (step + 1) % 4;
+      line.textContent = `[Kernel daemon computing${".".repeat(step)}${" ".repeat(3 - step)}]`;
+
+      if (activeOutput instanceof HTMLElement) {
+        activeOutput.scrollTop = activeOutput.scrollHeight;
+      }
+    }, 170);
+
+    return () => {
+      clearInterval(intervalId);
+      activeIntervals.delete(intervalId);
+      line.remove();
+    };
+  }
+
+  async function parseLlmResponse(response) {
+    if (!response?.ok) {
+      const failureText = await response.text().catch(() => "");
+      const statusCode = response?.status || 502;
+      const summary = failureText.trim() || `HTTP ${statusCode}`;
+      throw new Error(`LLM endpoint error: ${summary}`);
+    }
+
+    let parsedBody = null;
+
+    try {
+      parsedBody = await response.json();
+    } catch {
+      throw new Error("LLM endpoint returned invalid JSON.");
+    }
+
+    if (!parsedBody || typeof parsedBody !== "object") {
+      throw new Error("LLM endpoint returned an invalid payload.");
+    }
+
+    return parsedBody;
   }
 
   function findOwningMountPath(pathInput) {
@@ -558,10 +1038,11 @@ export function createUbuntuServerShell({
   function resolveDirectoryListing(pathInput) {
     const absolutePath = resolveTargetPath(pathInput);
 
-    if (!absolutePath) {
+    if (!absolutePath || isPathDeleted(absolutePath)) {
       return null;
     }
 
+    let baseListing = null;
     const owningMountPath = findOwningMountPath(absolutePath);
 
     if (owningMountPath && typeof fileLayer?.listDirectory === "function") {
@@ -571,7 +1052,7 @@ export function createUbuntuServerShell({
       });
 
       if (directoryListing) {
-        return {
+        baseListing = {
           path: absolutePath,
           source: "filesystem",
           entries: directoryListing.entries || [],
@@ -579,17 +1060,35 @@ export function createUbuntuServerShell({
       }
     }
 
-    const virtualEntries = listVirtualDirectoryEntries(absolutePath);
+    if (!baseListing) {
+      const virtualEntries = listVirtualDirectoryEntries(absolutePath);
 
-    if (virtualEntries) {
-      return {
-        path: absolutePath,
-        source: "virtual",
-        entries: virtualEntries,
-      };
+      if (virtualEntries) {
+        baseListing = {
+          path: absolutePath,
+          source: "virtual",
+          entries: virtualEntries,
+        };
+      }
     }
 
-    return null;
+    const mergedEntries = mergeDirectoryEntries(absolutePath, baseListing?.entries || []);
+    const hasOverlayDirectory =
+      llmOverlayDirectories.has(absolutePath) && !isPathDeleted(absolutePath);
+
+    if (!baseListing && !hasOverlayDirectory && mergedEntries.length === 0) {
+      return null;
+    }
+
+    return {
+      path: absolutePath,
+      source: baseListing
+        ? hasOverlayDirectory || mergedEntries.length !== (baseListing.entries || []).length
+          ? "hybrid"
+          : baseListing.source
+        : "overlay",
+      entries: mergedEntries,
+    };
   }
 
   function formatLsEntries(entries = []) {
@@ -671,10 +1170,13 @@ export function createUbuntuServerShell({
     appendOutputLine("cd [path]            Change directory");
     appendOutputLine("ls [path]            List available entries");
     appendOutputLine("cat <file>           Show file content");
+    appendOutputLine("open <path|url>      Open file, folder, or URL in GUI app layer");
     appendOutputLine("oslist               List installed operating systems");
     appendOutputLine("boot <target>        Reboot into target (win95, winxp, ubuntu)");
     appendOutputLine("reboot [target]      Reboot current or target OS");
     appendOutputLine("shutdown             Halt system and return to power screen");
+    appendOutputLine("");
+    appendOutputLine("Unknown commands automatically route to llmshell.matijar.info.", "status");
     appendOutputLine("");
     appendOutputLine("Linux mounts from mock filesystem:", "status");
 
@@ -695,70 +1197,359 @@ export function createUbuntuServerShell({
     appendOutputLine("Use: boot <target>");
   }
 
-  async function executeCommand(commandText) {
-    const parts = splitCommand(commandText);
-    const command = normalizeToken(parts[0]);
-    const args = parts.slice(1);
+  async function handleOpenCommand(args = []) {
+    const targetInput = String(args[0] || "").trim();
 
-    if (!command) {
+    if (!targetInput) {
+      appendOutputLine("open: missing target path or URL", "error");
+      return false;
+    }
+
+    if (/^https?:\/\//i.test(targetInput)) {
+      if (!requestAppLaunch("internet-explorer", { url: targetInput })) {
+        appendOutputLine("open: event bus is unavailable for GUI launch.", "error");
+        return false;
+      }
+
+      return true;
+    }
+
+    const absolutePath = resolveTargetPath(targetInput);
+
+    if (!absolutePath || isPathDeleted(absolutePath)) {
+      appendOutputLine(`open: ${targetInput}: No such file or directory`, "error");
+      return false;
+    }
+
+    const resolvedListing = resolveDirectoryListing(absolutePath);
+
+    if (resolvedListing) {
+      if (
+        !requestAppLaunch("mock-file-browser", {
+          os: "linux",
+          path: resolvedListing.path,
+          title: resolvedListing.path,
+        })
+      ) {
+        appendOutputLine("open: event bus is unavailable for GUI launch.", "error");
+        return false;
+      }
+
+      return true;
+    }
+
+    if (typeof resolveOverlayFileContent(absolutePath) === "string" || etcVirtualFiles.has(absolutePath)) {
+      if (
+        !requestAppLaunch("mock-file-viewer", {
+          os: "linux",
+          path: absolutePath,
+        })
+      ) {
+        appendOutputLine("open: event bus is unavailable for GUI launch.", "error");
+        return false;
+      }
+
+      return true;
+    }
+
+    if (typeof fileLayer?.accessPath !== "function") {
+      appendOutputLine(`open: ${targetInput}: No such file or directory`, "error");
+      return false;
+    }
+
+    const accessResult = await fileLayer.accessPath({
+      os: "linux",
+      path: absolutePath,
+    });
+
+    if (!accessResult || typeof accessResult !== "object") {
+      appendOutputLine(`open: ${targetInput}: No such file or directory`, "error");
+      return false;
+    }
+
+    if (accessResult.kind === "directory") {
+      if (
+        !requestAppLaunch("mock-file-browser", {
+          os: "linux",
+          path: absolutePath,
+          title: absolutePath,
+        })
+      ) {
+        appendOutputLine("open: event bus is unavailable for GUI launch.", "error");
+        return false;
+      }
+
+      return true;
+    }
+
+    if (accessResult.kind === "action") {
+      if (typeof accessResult.appId !== "string" || !accessResult.appId) {
+        appendOutputLine("open: action mapping is missing app id.", "error");
+        return false;
+      }
+
+      if (!requestAppLaunch(accessResult.appId, accessResult.launchPayload)) {
+        appendOutputLine("open: event bus is unavailable for GUI launch.", "error");
+        return false;
+      }
+
+      return true;
+    }
+
+    if (accessResult.kind !== "file") {
+      appendOutputLine(`open: ${targetInput}: No such file or directory`, "error");
+      return false;
+    }
+
+    if (
+      !requestAppLaunch("mock-file-viewer", {
+        os: "linux",
+        path: absolutePath,
+      })
+    ) {
+      appendOutputLine("open: event bus is unavailable for GUI launch.", "error");
+      return false;
+    }
+
+    return true;
+  }
+
+  function applyVfsMutation(rawMutation) {
+    if (!rawMutation || typeof rawMutation !== "object") {
+      return false;
+    }
+
+    const action = normalizeToken(rawMutation.action);
+    const targetPath = rawMutation.path || rawMutation.target || rawMutation.file || rawMutation.source;
+    const destinationPath =
+      rawMutation.to || rawMutation.destination || rawMutation.newPath || rawMutation.nextPath;
+    const content =
+      rawMutation.content ??
+      rawMutation.value ??
+      rawMutation.text ??
+      rawMutation.stdout ??
+      "";
+    const nodeType = normalizeToken(rawMutation.type || rawMutation.nodeType || "");
+
+    if (!action) {
+      return false;
+    }
+
+    if (action === "mkdir" || action === "create-dir" || action === "create-directory") {
+      return runtimeFileSystem.createDirectory(targetPath);
+    }
+
+    if (
+      action === "create" ||
+      action === "touch" ||
+      action === "create-file" ||
+      action === "write" ||
+      action === "update"
+    ) {
+      if (nodeType === "directory") {
+        return runtimeFileSystem.createDirectory(targetPath);
+      }
+
+      return runtimeFileSystem.writeFile(targetPath, content);
+    }
+
+    if (action === "append" || action === "append-file") {
+      return runtimeFileSystem.appendFile(targetPath, content);
+    }
+
+    if (
+      action === "delete" ||
+      action === "remove" ||
+      action === "rm" ||
+      action === "delete-file" ||
+      action === "unlink" ||
+      action === "rmdir" ||
+      action === "delete-directory"
+    ) {
+      return runtimeFileSystem.deletePath(targetPath);
+    }
+
+    if (action === "move" || action === "mv" || action === "rename") {
+      return runtimeFileSystem.movePath(targetPath, destinationPath);
+    }
+
+    return false;
+  }
+
+  async function executeLlmUiEvents(uiEvents = []) {
+    for (const uiEvent of uiEvents) {
+      if (!uiEvent || typeof uiEvent !== "object") {
+        continue;
+      }
+
+      const eventType = typeof uiEvent.type === "string" ? uiEvent.type.trim() : "";
+      const payload = uiEvent.payload;
+
+      if (!eventType) {
+        continue;
+      }
+
+      if (eventType === "OPEN_APP") {
+        if (typeof payload === "string" && payload.trim()) {
+          await handleOpenCommand([payload.trim()]);
+        } else if (payload && typeof payload === "object") {
+          if (typeof payload.path === "string" && payload.path.trim()) {
+            await handleOpenCommand([payload.path.trim()]);
+          } else if (typeof payload.appId === "string" && payload.appId.trim()) {
+            requestAppLaunch(payload.appId, payload.launchPayload || payload);
+          }
+        }
+      }
+
+      emitUiEvent(eventType, payload);
+    }
+  }
+
+  async function processViaLLM(rawCommand) {
+    const stopIndicator = createLoadingIndicator();
+
+    try {
+      const response = await fetch(LLM_SHELL_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          command: rawCommand,
+          cwd: currentDirectory,
+          vfs_snapshot: buildCurrentDirectorySnapshot(currentDirectory),
+        }),
+      });
+      const llmResponse = await parseLlmResponse(response);
+
+      if (typeof llmResponse.stdout === "string" && llmResponse.stdout.length > 0) {
+        appendOutputBlock(llmResponse.stdout, "plain");
+      }
+
+      if (typeof llmResponse.stderr === "string" && llmResponse.stderr.length > 0) {
+        appendOutputBlock(llmResponse.stderr, "error");
+      }
+
+      if (Array.isArray(llmResponse.vfs_mutations)) {
+        for (const mutation of llmResponse.vfs_mutations) {
+          const mutationApplied = applyVfsMutation(mutation);
+
+          if (!mutationApplied) {
+            appendOutputLine("vfs: unable to apply mutation from LLM response", "error");
+          }
+        }
+      }
+
+      if (Array.isArray(llmResponse.ui_events)) {
+        await executeLlmUiEvents(llmResponse.ui_events);
+      }
+    } catch (error) {
+      appendOutputLine(
+        error instanceof Error ? error.message : "LLM processing failed unexpectedly.",
+        "error",
+      );
+    } finally {
+      stopIndicator();
+    }
+  }
+
+  async function runLocalFastPathMetaCommentary(rawCommand, command, args = []) {
+    if (localMetaRequestInFlight || disposed) {
       return;
     }
 
+    localMetaRequestInFlight = true;
+
+    const looksLikeOpenCvCommand =
+      command === "open" &&
+      String(args.join(" ") || "")
+        .toLowerCase()
+        .includes("cv");
+    const metaContext = looksLikeOpenCvCommand
+      ? LOCAL_FAST_PATH_META_CONTEXT
+      : `Local fast path command executed successfully: "${rawCommand}". ${LOCAL_FAST_PATH_META_CONTEXT}`;
+
+    try {
+      const response = await fetch(LLM_SHELL_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          command: rawCommand,
+          cwd: currentDirectory,
+          vfs_snapshot: buildCurrentDirectorySnapshot(currentDirectory),
+          meta_context: metaContext,
+        }),
+      });
+      const llmResponse = await parseLlmResponse(response);
+
+      if (typeof llmResponse.stdout === "string" && llmResponse.stdout.length > 0) {
+        appendOutputBlock(llmResponse.stdout, "status");
+      }
+    } catch {
+      // Meta commentary is best-effort and should never interrupt shell flow.
+    } finally {
+      localMetaRequestInFlight = false;
+    }
+  }
+
+  async function executeLocalCommand(command, args) {
     if (command === "help") {
       printHelp();
-      return;
+      return true;
     }
 
     if (command === "history") {
       if (commandHistory.length === 0) {
         appendOutputLine("history: empty");
-        return;
+        return false;
       }
 
       commandHistory.forEach((entry, index) => {
         appendOutputLine(`${String(index + 1).padStart(4, " ")}  ${entry}`);
       });
-      return;
+      return true;
     }
 
     if (command === "clear") {
       clearTerminalOutput();
-      return;
+      return true;
     }
 
     if (command === "date") {
       appendOutputLine(new Date().toString());
-      return;
+      return true;
     }
 
     if (command === "uptime") {
       appendOutputLine(`up ${formatUptime(Date.now() - bootedAt)}`);
-      return;
+      return true;
     }
 
     if (command === "whoami") {
       appendOutputLine(SHELL_USER);
-      return;
+      return true;
     }
 
     if (command === "hostname") {
       appendOutputLine(SHELL_HOSTNAME);
-      return;
+      return true;
     }
 
     if (command === "uname") {
       if (args[0] === "-a") {
         appendOutputLine(KERNEL_SIGNATURE);
-        return;
+        return true;
       }
 
       appendOutputLine("Linux");
-      return;
+      return true;
     }
 
     if (command === "pwd") {
       appendOutputLine(currentDirectory);
-      return;
+      return true;
     }
 
     if (command === "cd") {
@@ -767,11 +1558,11 @@ export function createUbuntuServerShell({
 
       if (!resolvedListing) {
         appendOutputLine(`cd: ${targetInput}: No such file or directory`, "error");
-        return;
+        return false;
       }
 
       currentDirectory = resolvedListing.path;
-      return;
+      return true;
     }
 
     if (command === "ls") {
@@ -780,31 +1571,37 @@ export function createUbuntuServerShell({
 
       if (resolvedListing) {
         appendOutputLine(formatLsEntries(resolvedListing.entries) || "(empty)");
-        return;
+        return true;
       }
 
       const absolutePath = resolveTargetPath(targetInput);
 
-      if (absolutePath && typeof fileLayer?.inspectPath === "function") {
-        const inspectedEntry = fileLayer.inspectPath({
-          os: "linux",
-          path: absolutePath,
-        });
+      if (absolutePath && !isPathDeleted(absolutePath)) {
+        if (typeof resolveOverlayFileContent(absolutePath) === "string") {
+          appendOutputLine(getPathBaseName(absolutePath));
+          return true;
+        }
 
-        if (inspectedEntry?.type === "file") {
-          appendOutputLine(inspectedEntry.name || targetInput);
-          return;
+        if (typeof fileLayer?.inspectPath === "function") {
+          const inspectedEntry = fileLayer.inspectPath({
+            os: "linux",
+            path: absolutePath,
+          });
+
+          if (inspectedEntry?.type === "file") {
+            appendOutputLine(inspectedEntry.name || targetInput);
+            return true;
+          }
+        }
+
+        if (etcVirtualFiles.has(absolutePath)) {
+          appendOutputLine(getPathBaseName(absolutePath));
+          return true;
         }
       }
 
-      if (absolutePath && etcVirtualFiles.has(absolutePath)) {
-        const pathSegments = absolutePath.split("/").filter(Boolean);
-        appendOutputLine(pathSegments[pathSegments.length - 1] || absolutePath);
-        return;
-      }
-
       appendOutputLine(`ls: cannot access '${targetInput}': No such file or directory`, "error");
-      return;
+      return false;
     }
 
     if (command === "cat") {
@@ -812,7 +1609,7 @@ export function createUbuntuServerShell({
 
       if (!targetFile) {
         appendOutputLine("cat: missing file operand", "error");
-        return;
+        return false;
       }
 
       const absolutePath =
@@ -822,19 +1619,26 @@ export function createUbuntuServerShell({
             ? "/etc/os-release"
             : resolveTargetPath(targetFile);
 
-      if (!absolutePath) {
+      if (!absolutePath || isPathDeleted(absolutePath)) {
         appendOutputLine(`cat: ${targetFile}: No such file or directory`, "error");
-        return;
+        return false;
+      }
+
+      const overlayContent = resolveOverlayFileContent(absolutePath);
+
+      if (typeof overlayContent === "string") {
+        appendOutputBlock(overlayContent);
+        return true;
       }
 
       if (etcVirtualFiles.has(absolutePath)) {
         appendOutputBlock(etcVirtualFiles.get(absolutePath));
-        return;
+        return true;
       }
 
       if (typeof fileLayer?.accessPath !== "function") {
         appendOutputLine(`cat: ${targetFile}: No such file or directory`, "error");
-        return;
+        return false;
       }
 
       const accessResult = await fileLayer.accessPath({
@@ -844,12 +1648,12 @@ export function createUbuntuServerShell({
 
       if (!accessResult || typeof accessResult !== "object") {
         appendOutputLine(`cat: ${targetFile}: No such file or directory`, "error");
-        return;
+        return false;
       }
 
       if (accessResult.kind === "directory") {
         appendOutputLine(`cat: ${targetFile}: Is a directory`, "error");
-        return;
+        return false;
       }
 
       if (accessResult.kind === "action") {
@@ -857,21 +1661,25 @@ export function createUbuntuServerShell({
           `cat: ${targetFile}: mapped to action (${accessResult.actionType})`,
           "error",
         );
-        return;
+        return false;
       }
 
       if (accessResult.kind !== "file") {
         appendOutputLine(`cat: ${targetFile}: No such file or directory`, "error");
-        return;
+        return false;
       }
 
       appendOutputBlock(String(accessResult.content || ""));
-      return;
+      return true;
+    }
+
+    if (command === "open") {
+      return handleOpenCommand(args);
     }
 
     if (command === "oslist") {
       printInstalledOs();
-      return;
+      return true;
     }
 
     if (command === "boot") {
@@ -879,28 +1687,28 @@ export function createUbuntuServerShell({
 
       if (!target) {
         appendOutputLine("Usage: boot <win95|winxp|ubuntu>", "error");
-        return;
+        return false;
       }
 
       requestTargetSystemSwitch(target);
-      return;
+      return true;
     }
 
     if (command === "reboot") {
       if (args.length === 0) {
         requestTargetSystemSwitch(resolveOsTarget("ubuntu"));
-        return;
+        return true;
       }
 
       const target = resolveOsTarget(args[0]);
 
       if (!target) {
         appendOutputLine("Usage: reboot [win95|winxp|ubuntu]", "error");
-        return;
+        return false;
       }
 
       requestTargetSystemSwitch(target);
-      return;
+      return true;
     }
 
     if (command === "shutdown" || command === "poweroff" || command === "halt") {
@@ -910,18 +1718,41 @@ export function createUbuntuServerShell({
           renderPowerOff();
         }
       }, 250);
-      return;
+      return true;
     }
 
     if (command === "msconfig") {
       appendOutputLine(
-        "msconfig is a GUI utility. Use `oslist` and `boot <target>` in Ubuntu shell mode.",
+        "msconfig is a GUI utility. Use `open /mnt/d/CHANGELOG.MD` or GUI launch commands.",
         "error",
       );
+      return false;
+    }
+
+    appendOutputLine(`${command}: command not available in local fast path`, "error");
+    return false;
+  }
+
+  async function executeCommand(commandText) {
+    const parts = splitCommand(commandText);
+    const command = normalizeToken(parts[0]);
+    const args = parts.slice(1);
+
+    if (!command) {
       return;
     }
 
-    appendOutputLine(`${command}: command not found`, "error");
+    if (LOCAL_COMMANDS.has(command)) {
+      const localCommandSucceeded = await executeLocalCommand(command, args);
+
+      if (localCommandSucceeded) {
+        void runLocalFastPathMetaCommentary(commandText, command, args);
+      }
+
+      return;
+    }
+
+    await processViaLLM(commandText);
   }
 
   function renderTerminal() {
@@ -947,14 +1778,20 @@ export function createUbuntuServerShell({
             </form>
           </div>
         </section>
+        <div class="window-layer ubuntu-shell__window-layer" data-window-layer></div>
       </main>
     `;
 
     const shellNode = root.querySelector("[data-ubuntu-shell]");
+    const windowLayer = root.querySelector("[data-window-layer]");
     activeOutput = root.querySelector("[data-ubuntu-output]");
     const form = root.querySelector("[data-ubuntu-form]");
     const promptNode = root.querySelector("[data-ubuntu-prompt]");
     activeInput = root.querySelector("[data-ubuntu-command]");
+
+    if (windowLayer instanceof HTMLElement) {
+      windowManager?.setContainer?.(windowLayer);
+    }
 
     if (!(form instanceof HTMLFormElement) || !(activeInput instanceof HTMLInputElement)) {
       return;

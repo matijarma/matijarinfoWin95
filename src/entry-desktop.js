@@ -52,15 +52,77 @@ export async function mountDesktopRuntime(
   const fileLayer = await createFileLayer();
 
   if (resolvedDesktopProfile === "ubuntu-server") {
+    const eventBus = createEventBus();
+    const mediaEngine = createMediaEngine({ eventBus });
+    const windowManager = createWindowManager({ eventBus });
+    const webApps = await loadWebAppConfigs();
+    const appRegistry = createAppRegistry({
+      eventBus,
+      windowManager,
+      mediaEngine,
+      fileLayer,
+    });
+    const cleanupFns = [];
+
+    appRegistry.registerApps(
+      createDefaultManifests({
+        fileLayer,
+        mediaEngine,
+        webApps,
+        desktopProfile: resolvedDesktopProfile,
+      }),
+    );
+
+    cleanupFns.push(
+      eventBus.on("shell:app-launch-requested", ({ appId, launchPayload }) => {
+        if (typeof appId === "string" && appId) {
+          appRegistry.launchApp(appId, launchPayload);
+        }
+      }),
+    );
+
+    cleanupFns.push(
+      eventBus.on(
+        "shell:system-switch-requested",
+        ({ targetSystemId, sourceDesktopProfileId, autoBoot, reboot, rebootRequested } = {}) => {
+          if (typeof targetSystemId !== "string" || !targetSystemId) {
+            return;
+          }
+
+          if (typeof requestSystemSwitch === "function") {
+            requestSystemSwitch(targetSystemId, {
+              source: "ubuntu-shell-transition",
+              context: {
+                autoBoot: autoBoot !== false,
+                reboot: reboot === true || rebootRequested === true,
+              },
+              forceRemount: reboot === true || rebootRequested === true,
+            });
+            return;
+          }
+
+          onRequestSystemSwitch?.({
+            targetSystemId,
+            sourceDesktopProfileId:
+              sourceDesktopProfileId || resolvedDesktopProfile,
+          });
+        },
+      ),
+    );
+
     const ubuntuShell = createUbuntuServerShell({
       root,
       fileLayer,
+      eventBus,
+      windowManager,
       requestSystemSwitch,
       switchContext,
       onRequestSystemSwitch,
     });
 
     return () => {
+      cleanupFns.forEach((cleanupFn) => cleanupFn());
+      windowManager.destroy();
       ubuntuShell.unmount?.();
     };
   }

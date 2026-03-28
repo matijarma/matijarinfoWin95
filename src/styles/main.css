@@ -114,6 +114,11 @@ select {
   font-family: "Ubuntu Mono", "Consolas", "Lucida Console", "Courier New", monospace;
 }
 
+.ubuntu-shell {
+  position: relative;
+  overflow: hidden;
+}
+
 .ubuntu-boot {
   padding: clamp(18px, 2.5vw, 30px);
   overflow: auto;
@@ -170,11 +175,17 @@ select {
 }
 
 .ubuntu-shell__terminal {
+  position: relative;
+  z-index: 2;
   height: 100%;
   overflow: hidden;
   padding: clamp(12px, 2.4vw, 26px);
   display: flex;
   align-items: flex-start;
+}
+
+.ubuntu-shell__window-layer {
+  z-index: 10;
 }
 
 .ubuntu-shell__session {

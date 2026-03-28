@@ -13,6 +13,8 @@ const SHELL_HISTORY_MAX_ENTRIES = 300;
 const LLM_SHELL_ENDPOINT = "https://llmshell.matijar.info";
 const LOCAL_FAST_PATH_META_CONTEXT =
   "User just opened the CV locally. Give a 1-sentence snarky sysadmin observation to print to console.";
+const TURNSTILE_TOKEN_POLL_INTERVAL_MS = 120;
+const TURNSTILE_TOKEN_POLL_TIMEOUT_MS = 3000;
 const LOCAL_COMMANDS = new Set([
   "help",
   "history",
@@ -347,6 +349,146 @@ export function createUbuntuServerShell({
     while (cleanupFns.length > 0) {
       const cleanupFn = cleanupFns.pop();
       cleanupFn?.();
+    }
+  }
+
+  function readTurnstileContext() {
+    const turnstileRef = window?.turnstile;
+    const widgetId = window?.turnstileWidgetId;
+
+    if (
+      !turnstileRef ||
+      typeof turnstileRef.getResponse !== "function" ||
+      typeof turnstileRef.reset !== "function"
+    ) {
+      return null;
+    }
+
+    if (widgetId == null || widgetId === "") {
+      return null;
+    }
+
+    return {
+      turnstileRef,
+      widgetId,
+    };
+  }
+
+  async function resolveTurnstileContext() {
+    if (typeof window?.ensureTurnstileWidgetReady === "function") {
+      try {
+        await window.ensureTurnstileWidgetReady(TURNSTILE_TOKEN_POLL_TIMEOUT_MS);
+      } catch {
+        // Ignore widget readiness errors and fall back to direct context read.
+      }
+    }
+
+    return readTurnstileContext();
+  }
+
+  function readTurnstileToken() {
+    const cachedToken =
+      typeof window?.turnstileToken === "string" ? window.turnstileToken.trim() : "";
+
+    if (cachedToken) {
+      return cachedToken;
+    }
+
+    const context = readTurnstileContext();
+
+    if (!context) {
+      return null;
+    }
+
+    try {
+      const token = context.turnstileRef.getResponse(context.widgetId);
+      const normalizedToken = typeof token === "string" ? token.trim() : "";
+      return normalizedToken || null;
+    } catch {
+      return null;
+    }
+  }
+
+  function resetTurnstileWidget() {
+    const context = readTurnstileContext();
+
+    if (!context) {
+      return;
+    }
+
+    try {
+      if (typeof window !== "undefined") {
+        window.turnstileToken = "";
+        window.turnstileTokenUpdatedAt = 0;
+      }
+
+      context.turnstileRef.reset(context.widgetId);
+    } catch {
+      // Ignore widget lifecycle errors so shell requests still complete.
+    }
+  }
+
+  async function resolveTurnstileToken() {
+    const existingToken = readTurnstileToken();
+
+    if (existingToken) {
+      return existingToken;
+    }
+
+    const context = await resolveTurnstileContext();
+
+    if (!context) {
+      return null;
+    }
+
+    try {
+      context.turnstileRef.reset(context.widgetId);
+
+      if (typeof context.turnstileRef.execute === "function") {
+        context.turnstileRef.execute(context.widgetId);
+      }
+
+      const deadline = Date.now() + TURNSTILE_TOKEN_POLL_TIMEOUT_MS;
+
+      while (Date.now() < deadline) {
+        await new Promise((resolve) => {
+          window.setTimeout(resolve, TURNSTILE_TOKEN_POLL_INTERVAL_MS);
+        });
+
+        const token = readTurnstileToken();
+
+        if (token) {
+          return token;
+        }
+      }
+    } catch {
+      return null;
+    }
+
+    return null;
+  }
+
+  async function postToLlmShell(payload = {}) {
+    const turnstileToken = await resolveTurnstileToken();
+
+    if (!turnstileToken) {
+      throw new Error("Security token unavailable. Wait a second and run the command again.");
+    }
+
+    try {
+      return await fetch(LLM_SHELL_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          ...payload,
+          turnstile_token: turnstileToken,
+        }),
+      });
+    } finally {
+      // Turnstile response tokens are single-use; prepare a fresh token for next request.
+      resetTurnstileWidget();
     }
   }
 
@@ -902,7 +1044,25 @@ export function createUbuntuServerShell({
     if (!response?.ok) {
       const failureText = await response.text().catch(() => "");
       const statusCode = response?.status || 502;
-      const summary = failureText.trim() || `HTTP ${statusCode}`;
+      let summary = failureText.trim() || `HTTP ${statusCode}`;
+
+      if (summary) {
+        try {
+          const parsedFailure = JSON.parse(summary);
+
+          if (
+            parsedFailure &&
+            typeof parsedFailure === "object" &&
+            typeof parsedFailure.stderr === "string" &&
+            parsedFailure.stderr.trim()
+          ) {
+            summary = parsedFailure.stderr.trim();
+          }
+        } catch {
+          // Keep existing summary when body is plain text.
+        }
+      }
+
       throw new Error(`LLM endpoint error: ${summary}`);
     }
 
@@ -918,7 +1078,41 @@ export function createUbuntuServerShell({
       throw new Error("LLM endpoint returned an invalid payload.");
     }
 
-    return parsedBody;
+    const normalizedResponse = {
+      ...parsedBody,
+      stdout:
+        typeof parsedBody.stdout === "string"
+          ? parsedBody.stdout
+          : parsedBody.stdout == null
+            ? ""
+            : String(parsedBody.stdout),
+      stderr:
+        typeof parsedBody.stderr === "string"
+          ? parsedBody.stderr
+          : parsedBody.stderr == null
+            ? ""
+            : String(parsedBody.stderr),
+      vfs_mutations: Array.isArray(parsedBody.vfs_mutations) ? parsedBody.vfs_mutations : [],
+      ui_events: Array.isArray(parsedBody.ui_events) ? parsedBody.ui_events : [],
+    };
+    const hasNoVisibleOutput =
+      !normalizedResponse.stdout.trim() &&
+      !normalizedResponse.stderr.trim() &&
+      normalizedResponse.vfs_mutations.length === 0 &&
+      normalizedResponse.ui_events.length === 0;
+
+    if (hasNoVisibleOutput) {
+      const workerVersion = response.headers?.get("x-llmshell-version") || "unknown";
+      const hasStdoutHeader = response.headers?.get("x-llmshell-has-stdout") || "0";
+      const hasStderrHeader = response.headers?.get("x-llmshell-has-stderr") || "0";
+
+      normalizedResponse.stderr =
+        hasStdoutHeader === "1" || hasStderrHeader === "1"
+          ? "LLM response was received but could not be rendered locally."
+          : `LLM returned an empty payload (worker ${workerVersion}).`;
+    }
+
+    return normalizedResponse;
   }
 
   function findOwningMountPath(pathInput) {
@@ -1409,16 +1603,10 @@ export function createUbuntuServerShell({
     const stopIndicator = createLoadingIndicator();
 
     try {
-      const response = await fetch(LLM_SHELL_ENDPOINT, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          command: rawCommand,
-          cwd: currentDirectory,
-          vfs_snapshot: buildCurrentDirectorySnapshot(currentDirectory),
-        }),
+      const response = await postToLlmShell({
+        command: rawCommand,
+        cwd: currentDirectory,
+        vfs_snapshot: buildCurrentDirectorySnapshot(currentDirectory),
       });
       const llmResponse = await parseLlmResponse(response);
 
@@ -1470,17 +1658,11 @@ export function createUbuntuServerShell({
       : `Local fast path command executed successfully: "${rawCommand}". ${LOCAL_FAST_PATH_META_CONTEXT}`;
 
     try {
-      const response = await fetch(LLM_SHELL_ENDPOINT, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          command: rawCommand,
-          cwd: currentDirectory,
-          vfs_snapshot: buildCurrentDirectorySnapshot(currentDirectory),
-          meta_context: metaContext,
-        }),
+      const response = await postToLlmShell({
+        command: rawCommand,
+        cwd: currentDirectory,
+        vfs_snapshot: buildCurrentDirectorySnapshot(currentDirectory),
+        meta_context: metaContext,
       });
       const llmResponse = await parseLlmResponse(response);
 

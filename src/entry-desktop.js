@@ -10,6 +10,106 @@ import { createWindowManager } from "./core/window-manager/index.js";
 import { createDesktopShell } from "./desktop-shell/index.js";
 import { createUbuntuServerShell } from "./desktop-shell/ubuntu-server-shell.js";
 
+const TURNSTILE_RENDER_RETRY_LIMIT = 40;
+const TURNSTILE_RENDER_RETRY_DELAY_MS = 150;
+const TURNSTILE_READY_POLL_INTERVAL_MS = 120;
+
+window.turnstileWidgetId = null;
+window.turnstileToken = "";
+window.turnstileTokenUpdatedAt = 0;
+
+let turnstileRenderRetryCount = 0;
+let turnstileRenderTimerId = null;
+
+function ensureTurnstileContainer() {
+  let container = document.getElementById("cf-turnstile-widget");
+
+  if (container instanceof HTMLElement) {
+    return container;
+  }
+
+  container = document.createElement("div");
+  container.id = "cf-turnstile-widget";
+  document.body.appendChild(container);
+  return container;
+}
+
+function clearTurnstileToken() {
+  window.turnstileToken = "";
+  window.turnstileTokenUpdatedAt = 0;
+}
+
+function handleTurnstileToken(token) {
+  const normalized = typeof token === "string" ? token.trim() : "";
+  window.turnstileToken = normalized;
+  window.turnstileTokenUpdatedAt = normalized ? Date.now() : 0;
+}
+
+function scheduleTurnstileRenderRetry() {
+  if (turnstileRenderTimerId != null) {
+    return;
+  }
+
+  turnstileRenderTimerId = window.setTimeout(() => {
+    turnstileRenderTimerId = null;
+    renderTurnstileWidget();
+  }, TURNSTILE_RENDER_RETRY_DELAY_MS);
+}
+
+function renderTurnstileWidget() {
+  if (window.turnstileWidgetId != null && window.turnstileWidgetId !== "") {
+    return window.turnstileWidgetId;
+  }
+
+  const turnstileRef = window.turnstile;
+
+  if (!turnstileRef || typeof turnstileRef.render !== "function") {
+    if (turnstileRenderRetryCount < TURNSTILE_RENDER_RETRY_LIMIT) {
+      turnstileRenderRetryCount += 1;
+    }
+
+    scheduleTurnstileRenderRetry();
+    return null;
+  }
+
+  turnstileRenderRetryCount = 0;
+  const container = ensureTurnstileContainer();
+  window.turnstileWidgetId = turnstileRef.render(`#${container.id}`, {
+    sitekey: "0x4AAAAAACw_ppG3kcPvLRXh",
+    size: "invisible",
+    callback: handleTurnstileToken,
+    "expired-callback": clearTurnstileToken,
+    "timeout-callback": clearTurnstileToken,
+    "error-callback": clearTurnstileToken,
+  });
+
+  return window.turnstileWidgetId;
+}
+
+window.ensureTurnstileWidgetReady = async function ensureTurnstileWidgetReady(timeoutMs = 6000) {
+  if (window.turnstileWidgetId != null && window.turnstileWidgetId !== "") {
+    return window.turnstileWidgetId;
+  }
+
+  renderTurnstileWidget();
+  const deadline = Date.now() + Math.max(0, Number(timeoutMs) || 0);
+
+  while (Date.now() < deadline) {
+    if (window.turnstileWidgetId != null && window.turnstileWidgetId !== "") {
+      return window.turnstileWidgetId;
+    }
+
+    renderTurnstileWidget();
+    await new Promise((resolve) => {
+      window.setTimeout(resolve, TURNSTILE_READY_POLL_INTERVAL_MS);
+    });
+  }
+
+  return null;
+}
+
+renderTurnstileWidget();
+
 function resolveDesktopProfileId(systemId, desktopProfile) {
   if (typeof desktopProfile === "string" && desktopProfile.trim()) {
     return desktopProfile.trim().toLowerCase();

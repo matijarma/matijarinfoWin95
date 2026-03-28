@@ -1,5 +1,4 @@
-import { createSymbianShell as createUIQP1iShell } from "./mobile-symbian/index.js";
-import { createSymbianShell as createV1995S60Shell } from "./mobile-variants/v1995-s60/index.js";
+import { createSymbianShell } from "./mobile-symbian/index.js";
 import {
   normalizeMobileVariant,
   readLegacyMobileVariantFromSearch,
@@ -44,16 +43,18 @@ function ensureMobileStylesheet(mobileVariant) {
 }
 
 export function mountMobileRuntime(root, { variant } = {}) {
-  const mobileVariant = resolveMobileVariant(variant);
-  ensureMobileStylesheet(mobileVariant);
-  const shellFactory =
-    mobileVariant === "v1995-s60" ? createV1995S60Shell : createUIQP1iShell;
-  const shell = shellFactory({ root });
+  const requestedVariant = resolveMobileVariant(variant);
+  const mobileVariant = "s60-3rd";
 
+  ensureMobileStylesheet(mobileVariant);
+  const shell = createSymbianShell({ root, variant: mobileVariant });
+
+  root.dataset.mobileVariantRequested = requestedVariant;
   root.dataset.mobileVariant = mobileVariant;
   shell.mount();
 
   return () => {
+    delete root.dataset.mobileVariantRequested;
     delete root.dataset.mobileVariant;
     shell.unmount();
   };
